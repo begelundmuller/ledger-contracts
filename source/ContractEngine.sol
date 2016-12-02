@@ -1,7 +1,7 @@
 pragma solidity ^0.4.2;
 
 import './ContractBuilder.sol';
-import './SimpleFeed.sol';
+import './InternalFeed.sol';
 import './Token.sol';
 
 //// Smart contract that manages and settles contracts
@@ -21,7 +21,7 @@ import './Token.sol';
 //// - event AgreementSigned(uint256 agreementId)
 //// - event AgreementSettled(uint256 agreementId)
 //// - event AgreementKilled(uint256 agreementId)
-contract ContractEngine is ContractBuilder, SimpleFeed  {
+contract ContractEngine is ContractBuilder, InternalFeed  {
 
   /// Structs
   /// -------
@@ -66,6 +66,13 @@ contract ContractEngine is ContractBuilder, SimpleFeed  {
   event AgreementKilled(uint256 agreementId);
 
   /// Debugging
+  event LogU(string name, uint val);
+  event LogI(string name, int val);
+  event LogB(string name, bool val);
+  event LogS(string name, bytes8 val);
+  event LogA(string name, address val);
+
+  /// Debugging
   /// ---------
 
   function agreementParties(uint agreementId, uint partyIdx) returns (bytes8) {
@@ -93,7 +100,7 @@ contract ContractEngine is ContractBuilder, SimpleFeed  {
   /// ------------------
 
   /// Initializer
-  function ContractEngine() ContractBuilder() SimpleFeed() {
+  function ContractEngine() ContractBuilder() InternalFeed() {
   }
 
   /// Register a new agreement
@@ -357,7 +364,6 @@ contract ContractEngine is ContractBuilder, SimpleFeed  {
       return evaluateIfWithinContract(agreementId, contractId, scale);
     }
   }
-
 
   function evaluateIfWithinContract(uint agreementId, uint contractId, int scale)
   internal returns (uint) {

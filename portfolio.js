@@ -7,7 +7,7 @@ var addressGBP = "0xc79ccc291b89aa5aa24f40f5fe7f6d02512eaf0d";
 var addressFeed = "0x6b5986b039c3148e46303f2d12d705839093f6ac";
 
 // Intermediate values (populate as executing steps)
-var addressEngine = "0xe2b55cde02c98f8550fc0bf25459f06d5bcc0e36";
+var addressEngine = "0xa34e37249c34d9a2a0f83af450eb30f5fb062f03";
 var contractIds = [6];
 var agreementIds = [0];
 
@@ -42,6 +42,9 @@ var createPortfolio = function() {
   });
 }
 
+// var status = debug.traceTransaction
+ // status.structLogs
+
 // Registers the contracts
 var registerPortfolio = function() {
   var engine = lib.ContractEngine.at(addressEngine);
@@ -51,6 +54,7 @@ var registerPortfolio = function() {
       var events = engine.allEvents("latest", function(err, event) {
         if (event.transactionHash == tx) {
           console.log(event.args.agreementId.toString());
+          // console.log(event);
           events.stopWatching();
         }
       });
@@ -59,18 +63,17 @@ var registerPortfolio = function() {
 }
 
 // Signs the contracts in the engine
-var signPortfolio = function() {
+var signPortfolio = function(party) {
   var engine = lib.ContractEngine.at(addressEngine);
   agreementIds.forEach(function(agreementId) {
-    [party1, party2].forEach(function(party) {
-      engine.sign(agreementId, { from: party, gas: 10000000 }, function(e, tx) {
-        if (e) { console.log(e); return; }
-        var events = engine.allEvents("latest", function(err, event) {
-          if (event.transactionHash == tx) {
-            console.log(event.args.agreementId.toString() + " == " + agreementId + " ==> signed!");
-            events.stopWatching();
-          }
-        });
+    engine.sign(agreementId, { from: party, gas: 10000000 }, function(e, tx) {
+      console.log("Transaction: " + tx);
+      if (e) { console.log(e); return; }
+      var events = engine.allEvents("latest", function(err, event) {
+        if (event.transactionHash == tx) {
+          console.log(event.args.agreementId.toString() + " == " + agreementId + " ==> signed!");
+          events.stopWatching();
+        }
       });
     });
   });
@@ -78,20 +81,30 @@ var signPortfolio = function() {
 
 //
 var evaluatePortfolio = function() {
+  var engine = lib.ContractEngine.at(addressEngine);
+  agreementIds.forEach(function(agreementId) {
+
+  });
+
+
   // Call evaluate on contracts, print all transfers that transpire
 }
 
 //
 var debug = function() {
   var engine = lib.ContractEngine.at(addressEngine);
-  console.log(engine.exprs(0));
+  console.log(engine.agreements(0));
 }
 
 // Do:
 // createEngine();
 // createPortfolio();
 // registerPortfolio();
-// signPortfolio();
+// signPortfolio(party1);
+signPortfolio(party2);
 // evaluatePortfolio()
 
-debug();
+
+
+// debug();
+//
