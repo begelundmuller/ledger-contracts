@@ -92,7 +92,6 @@ contract ContractBuilder {
       integer: 0,
       label: ""
     });
-return idx;
     return idx;
   }
 

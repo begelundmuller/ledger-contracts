@@ -354,33 +354,42 @@ contract ContractEngine is ContractBuilder, SimpleFeed  {
       transferTokens(agreementId, c.identifier1, c.identifier2, c.identifier3, scale);
       return contrEmpty();
     } else if (c.variant == ContrVariant.IfWithin) {
-      // Get n and t0
-      uint n = consts[c.const1].integer;
-      uint t0 = consts[c.const2].integer;
+      return evaluateIfWithinContract(agreementId, contractId, scale);
+    }
+  }
 
-      // Evaluate
-      bool result = false;
-      for (uint i = 0; i < n; i++) {
-        uint t = t0 + i;
-        if (t <= block.timestamp) {
-          pushEnv(c.identifier1, exprConstant(constInteger(t)));
-          uint exprId = evaluateExpression(agreementId, c.expr1);
-          popEnv();
-          Expr expr = exprs[exprId];
-          if (consts[expr.const1].boolean) {
-            result = true;
-          }
+
+  function evaluateIfWithinContract(uint agreementId, uint contractId, int scale)
+  internal returns (uint) {
+    // Contr
+    Contr c = contrs[contractId];
+
+    // Get n and t0
+    int n = consts[c.const1].integer;
+    int t0 = consts[c.const2].integer;
+
+    // Evaluate
+    bool result = false;
+    for (uint i = 0; i < uint(n); i++) {
+      int t = t0 + int(i);
+      if (uint(t) <= block.timestamp) {
+        pushEnv(c.identifier1, exprConstant(constInteger(t)));
+        uint exprId = evaluateExpression(agreementId, c.expr1);
+        popEnv();
+        Expr expr = exprs[exprId];
+        if (consts[expr.const1].boolean) {
+          result = true;
         }
       }
+    }
 
-      // Done
-      if (result) {
-        return c.contr1;
-      } else if (t0 + n > block.timestamp) {
-        return contractId;
-      } else {
-        return c.contr2;
-      }
+    // Done
+    if (result) {
+      return evaluateContract(agreementId, c.contr1, scale);
+    } else if (t0 + n > int(block.timestamp)) {
+      return contractId;
+    } else {
+      return evaluateContract(agreementId, c.contr2, scale);
     }
   }
 
