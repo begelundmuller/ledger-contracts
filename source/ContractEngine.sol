@@ -343,25 +343,36 @@ contract ContractEngine is ContractBuilder, InternalFeed  {
         return contrAnd(outContractId1, outContractId2);
       }
     } else if (c.variant == ContrVariant.Scale) {
-      // Return empty if scale is 0
-      k = consts[c.const1];
-      if (k.integer == 0) {
-        return contrEmpty();
-      }
-      // Evaluate subcontract with increased scale
-      uint outContractId = evaluateContract(agreementId, c.contr1, k.integer * scale);
-      Contr outContract = contrs[outContractId];
-      // Keep scaling only if not empty
-      if (outContract.variant == ContrVariant.Empty) {
-        return outContractId;
-      } else {
-        return contrScale(c.const1, outContractId);
-      }
+      return evaluateScaleContract(agreementId, contractId, scale);
     } else if (c.variant == ContrVariant.Transfer) {
       transferTokens(agreementId, c.identifier1, c.identifier2, c.identifier3, scale);
       return contrEmpty();
     } else if (c.variant == ContrVariant.IfWithin) {
       return evaluateIfWithinContract(agreementId, contractId, scale);
+    }
+  }
+
+  function evaluateScaleContract(uint agreementId, uint contractId, int scale)
+  internal returns (uint) {
+    Contr c = contrs[contractId];
+    // Return empty if scale is 0
+    uint outExprId = evaluateExpression(agreementId, c.expr1);
+    Expr e = exprs[outExprId];
+    if (e.variant != ExprVariant.Constant) {
+      return contractId;
+    }
+    Const k = consts[e.const1];
+    if (k.integer == 0) {
+      return contrEmpty();
+    }
+    // Evaluate subcontract with increased scale
+    uint outContractId = evaluateContract(agreementId, c.contr1, k.integer * scale);
+    Contr outContract = contrs[outContractId];
+    // Keep scaling only if not empty
+    if (outContract.variant == ContrVariant.Empty) {
+      return outContractId;
+    } else {
+      return contrScale(outExprId, outContractId);
     }
   }
 
@@ -564,11 +575,12 @@ contract ContractEngine is ContractBuilder, InternalFeed  {
     Agreement a = agreements[agreementId];
 
     // Translate identifiers
-    Token token = Token(a.addressFor[tIdent]);
+    address tokenAddress = a.addressFor[tIdent];
     address party1Address = a.addressFor[p1Ident];
     address party2Address = a.addressFor[p2Ident];
 
     // Transfer
+    Token token = Token(tokenAddress);
     bool res = token.transferFrom(party1Address, party2Address, uint256(amount));
     if (!res) throw;
   }
