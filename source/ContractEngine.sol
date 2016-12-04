@@ -1,6 +1,6 @@
 pragma solidity ^0.4.2;
 
-import './ContractBuilder.sol';
+import './ContractEvaluator.sol';
 import './InternalFeed.sol';
 import './Token.sol';
 
@@ -21,7 +21,7 @@ import './Token.sol';
 //// - event AgreementSigned(uint256 agreementId)
 //// - event AgreementSettled(uint256 agreementId)
 //// - event AgreementKilled(uint256 agreementId)
-contract ContractEngine is ContractBuilder, InternalFeed  {
+contract ContractEngine is ContractEvaluator, InternalFeed  {
 
   /// Structs
   /// -------
@@ -39,12 +39,6 @@ contract ContractEngine is ContractBuilder, InternalFeed  {
 
     uint256 signedOn; // First time where ∀p <- partiesInContract . signed[p]
     uint256 killedOn; // First time where ∀p <- partiesInContract . killSigned[p]
-  }
-
-  /// Represents a variable assignment
-  struct Assignment {
-    bytes8 identifier;
-    uint expr;
   }
 
   /// Events
@@ -93,14 +87,11 @@ contract ContractEngine is ContractBuilder, InternalFeed  {
   /// Stores all registered agreements
   Agreement[] public agreements;
 
-  /// Used during evaluation of contracts (cleared in-between)
-  Assignment[] internal evaluationEnv;
-
   /// External functions
   /// ------------------
 
   /// Initializer
-  function ContractEngine() ContractBuilder() InternalFeed() {
+  function ContractEngine() ContractEvaluator() InternalFeed() {
   }
 
   /// Register a new agreement
@@ -130,7 +121,7 @@ contract ContractEngine is ContractBuilder, InternalFeed  {
     a.addressFor[feed1Name] = feed1Address;
 
     // Check (throws if not okay)
-    checkAgreement(idx, a.currentContract);
+    checkContract(idx, a.currentContract);
 
     // Done
     AgreementRegistered(idx);
@@ -250,321 +241,31 @@ contract ContractEngine is ContractBuilder, InternalFeed  {
   }
 
   /// Checking agreements
-  /// TODO: Type checking
   /// -------------------
 
-  function checkAgreement(uint agreementId, uint contractId) internal {
-    Contr c = contrs[contractId];
-    Agreement a = agreements[agreementId];
+  function checkerEncounteredName(uint key, NameKind kind, bytes8 name) internal {
+    // Check name is mapped to an address in the agreement being checked
+    Agreement a = agreements[key];
+    if (a.addressFor[name] == 0) throw;
 
-    if (c.variant == ContrVariant.Empty) {
-    } else if (c.variant == ContrVariant.After) {
-      checkAgreement(agreementId, c.contr1);
-    } else if (c.variant == ContrVariant.And) {
-      checkAgreement(agreementId, c.contr1);
-      checkAgreement(agreementId, c.contr2);
-    } else if (c.variant == ContrVariant.Scale) {
-      checkExpressionInAgreement(agreementId, c.expr1);
-      checkAgreement(agreementId, c.contr1);
-    } else if (c.variant == ContrVariant.Transfer) {
-      // Check token has an address
-      if (a.addressFor[c.identifier1] == 0) throw;
-      // Add party identifiers to a.parties
+    // If it's a party, store the name in the agreement (useful for evaluation)
+    if (kind == NameKind.Party) {
       uint idx = a.parties.length;
-      a.parties.length = a.parties.length + 2;
-      a.parties[idx] = c.identifier2;
-      a.parties[idx + 1] = c.identifier3;
-    } else if (c.variant == ContrVariant.IfWithin) {
-      checkExpressionInAgreement(agreementId, c.expr1);
-      checkAgreement(agreementId, c.contr1);
-      checkAgreement(agreementId, c.contr2);
+      a.parties.length++;
+      a.parties[idx] = name;
     }
-  }
-
-  function checkExpressionInAgreement(uint agreementId, uint expressionId) internal {
-    Expr e = exprs[expressionId];
-    Agreement a = agreements[agreementId];
-
-    if (e.variant == ExprVariant.Constant) {
-    } else if (e.variant == ExprVariant.Variable) {
-    } else if (e.variant == ExprVariant.Observation) {
-      // Check feed has an address
-      if (a.addressFor[e.identifier1] == 0) throw;
-      checkExpressionInAgreement(agreementId, e.expr1);
-      checkExpressionInAgreement(agreementId, e.expr2);
-    } else if (e.variant == ExprVariant.Acc) {
-      checkExpressionInAgreement(agreementId, e.expr1);
-      checkExpressionInAgreement(agreementId, e.expr2);
-    } else if (e.variant == ExprVariant.Plus) {
-      checkExpressionInAgreement(agreementId, e.expr1);
-      checkExpressionInAgreement(agreementId, e.expr2);
-    } else if (e.variant == ExprVariant.Equal) {
-      checkExpressionInAgreement(agreementId, e.expr1);
-      checkExpressionInAgreement(agreementId, e.expr2);
-    } else if (e.variant == ExprVariant.LessEqual) {
-      checkExpressionInAgreement(agreementId, e.expr1);
-      checkExpressionInAgreement(agreementId, e.expr2);
-    } else if (e.variant == ExprVariant.And) {
-      checkExpressionInAgreement(agreementId, e.expr1);
-      checkExpressionInAgreement(agreementId, e.expr2);
-    } else if (e.variant == ExprVariant.Not) {
-      checkExpressionInAgreement(agreementId, e.expr1);
-    }
-  }
-
-  /// Evaluating contracts
-  /// --------------------
-
-  /// Evaluates given contract and returns the ID of the reduced contract
-  /// If encounters a transfer, executes transfer and returns empty
-  function evaluateContract(uint agreementId, uint contractId, int scale)
-  internal returns (uint) {
-    Contr c = contrs[contractId];
-    if (c.variant == ContrVariant.Empty) { // Nothing to do
-      return contractId;
-    } else if (c.variant == ContrVariant.After) { // Reduce if past time
-      Const k = consts[c.const1];
-      if (k.integer <= int256(block.timestamp)) {
-        return evaluateContract(agreementId, c.contr1, scale);
-      } else {
-        return contractId;
-      }
-    } else if (c.variant == ContrVariant.And) { // Reduce both contrs
-      uint outContractId1 = evaluateContract(agreementId, c.contr1, scale);
-      uint outContractId2 = evaluateContract(agreementId, c.contr2, scale);
-      Contr outContract1 = contrs[outContractId1];
-      Contr outContract2 = contrs[outContractId2];
-      // If either is empty, no longer need for And
-      if (outContract1.variant == ContrVariant.Empty) {
-        return outContractId2;
-      } else if (outContract2.variant == ContrVariant.Empty) {
-        return outContractId1;
-      } else {
-        return contrAnd(outContractId1, outContractId2);
-      }
-    } else if (c.variant == ContrVariant.Scale) {
-      return evaluateScaleContract(agreementId, contractId, scale);
-    } else if (c.variant == ContrVariant.Transfer) {
-      transferTokens(agreementId, c.identifier1, c.identifier2, c.identifier3, scale);
-      return contrEmpty();
-    } else if (c.variant == ContrVariant.IfWithin) {
-      return evaluateIfWithinContract(agreementId, contractId, scale);
-    }
-  }
-
-  function evaluateScaleContract(uint agreementId, uint contractId, int scale)
-  internal returns (uint) {
-    Contr c = contrs[contractId];
-    // Return empty if scale is 0
-    uint outExprId = evaluateExpression(agreementId, c.expr1);
-    Expr e = exprs[outExprId];
-    if (e.variant != ExprVariant.Constant) {
-      return contractId;
-    }
-    Const k = consts[e.const1];
-    if (k.integer == 0) {
-      return contrEmpty();
-    }
-    // Evaluate subcontract with increased scale
-    uint outContractId = evaluateContract(agreementId, c.contr1, k.integer * scale);
-    Contr outContract = contrs[outContractId];
-    // Keep scaling only if not empty
-    if (outContract.variant == ContrVariant.Empty) {
-      return outContractId;
-    } else {
-      return contrScale(outExprId, outContractId);
-    }
-  }
-
-  function evaluateIfWithinContract(uint agreementId, uint contractId, int scale)
-  internal returns (uint) {
-    // Contr
-    Contr c = contrs[contractId];
-
-    // Get n and t0
-    int n = consts[c.const1].integer;
-    int t0 = consts[c.const2].integer;
-
-    // Evaluate
-    bool result = false;
-    for (uint i = 0; i < uint(n); i++) {
-      int t = t0 + int(i);
-      if (uint(t) <= block.timestamp) {
-        pushEnv(c.identifier1, exprConstant(constInteger(t)));
-        uint exprId = evaluateExpression(agreementId, c.expr1);
-        popEnv();
-        Expr expr = exprs[exprId];
-        if (consts[expr.const1].boolean) {
-          result = true;
-        }
-      }
-    }
-
-    // Done
-    if (result) {
-      return evaluateContract(agreementId, c.contr1, scale);
-    } else if (t0 + n > int(block.timestamp)) {
-      return contractId;
-    } else {
-      return evaluateContract(agreementId, c.contr2, scale);
-    }
-  }
-
-  /// Evaluates expression and returns the ID of the reduced expression
-  function evaluateExpression(uint agreementId, uint expressionId)
-  internal returns (uint) {
-    Expr e = exprs[expressionId];
-    if (e.variant == ExprVariant.Constant) {
-      Const k = consts[e.const1];
-      if (k.variant == ConstVariant.Label && k.label == "this") {
-        return constInteger(int(agreementId));
-      } else {
-        return expressionId;
-      }
-    } else if (e.variant == ExprVariant.Variable) {
-      return lookupEnv(e.identifier1);
-    } else if (e.variant == ExprVariant.Observation) {
-      return evaluateExpressionObservation(agreementId, expressionId);
-    } else if (e.variant == ExprVariant.Acc) {
-      return evaluateExpressionAcc(agreementId, expressionId);
-    } else if (e.variant == ExprVariant.Plus
-    || e.variant == ExprVariant.Equal
-    || e.variant == ExprVariant.LessEqual
-    || e.variant == ExprVariant.And) {
-      return evaluateExpressionBinaryOp(agreementId, expressionId);
-    } else if (e.variant == ExprVariant.Not) {
-      return evaluateExpressionUnaryOp(agreementId, expressionId);
-    }
-    return expressionId; // Couldn't evaluate (shouldn't happen...)
-  }
-
-  /// Evaluates an Obs expression
-  function evaluateExpressionObservation(uint agreementId, uint expressionId)
-  internal returns (uint) {
-    // Get
-    Agreement a = agreements[agreementId];
-    Expr e = exprs[expressionId];
-
-    // Evaluate sub-expressions
-    Expr e1 = exprs[evaluateExpression(agreementId, e.expr1)];
-    Expr e2 = exprs[evaluateExpression(agreementId, e.expr2)];
-
-    // If both don't evaluate to a constant, can't yet do anything
-    if (e1.variant != ExprVariant.Constant || e2.variant != ExprVariant.Constant) {
-      return expressionId;
-    }
-
-    // Get constants
-    Const k1 = consts[e1.const1];
-    Const k2 = consts[e2.const1];
-
-    // Get value from feed
-    address feedAddress = a.addressFor[e.identifier1];
-    Feed feed = Feed(feedAddress);
-    return feed.get(sha3(k1.label, k2.integer));
-  }
-
-  /// Evaluates an Acc expression
-  function evaluateExpressionAcc(uint agreementId, uint expressionId)
-  internal returns (uint) {
-    // Get
-    Agreement a = agreements[agreementId];
-    Expr e = exprs[expressionId];
-
-    // Get constants
-    int t = consts[e.const1].integer;
-    int d = consts[e.const2].integer;
-    int n = consts[e.const3].integer;
-
-    // If all times accumulated over are in the past
-    if (t + d * n < int(block.timestamp)) return expressionId;
-
-    // Accummulate
-    uint currentExpr = e.expr2;
-    for (uint i = 0; i <= uint(n); i++) {
-      pushEnv(e.identifier1, currentExpr);
-      pushEnv(e.identifier2, exprConstant(constInteger(t + d * int(i))));
-      currentExpr = evaluateExpression(agreementId, e.expr1);
-      popEnv();
-      popEnv();
-    }
-
-    // Return result of accumulation
-    return currentExpr;
-  }
-
-  /// Evaluates a unary operation (currently only +not+)
-  function evaluateExpressionUnaryOp(uint agreementId, uint expressionId)
-  internal returns (uint) {
-    // Get expr in question
-    Expr e = exprs[expressionId];
-    uint outExpressionId = evaluateExpression(agreementId, e.expr1);
-    Expr outExpression = exprs[outExpressionId];
-
-    // If not constant, can't evaluate yet
-    if (outExpression.variant != ExprVariant.Constant) {
-      return expressionId;
-    }
-
-    // Get constants
-    Const k1 = consts[outExpression.const1];
-
-    // Handle cases by type
-    if (k1.variant == ConstVariant.Boolean) {
-      if (e.variant == ExprVariant.Not) {
-        return constBoolean(!k1.boolean);
-      }
-    }
-
-    // Couldn't reduce, return same (shouldn't happen)
-    return expressionId;
-  }
-
-  /// Evaluates a binary operation
-  function evaluateExpressionBinaryOp(uint agreementId, uint expressionId)
-  internal returns (uint) {
-    // Get expr in questio
-    Expr e = exprs[expressionId];
-
-    // Evaluate each sub expr
-    uint exprId1 = evaluateExpression(agreementId, e.expr1);
-    uint exprId2 = evaluateExpression(agreementId, e.expr2);
-    Expr expr1 = exprs[exprId1];
-    Expr expr2 = exprs[exprId2];
-
-    // If both not constant, can't evaluate yet
-    if (expr1.variant != ExprVariant.Constant
-    || expr2.variant != ExprVariant.Constant) {
-      return expressionId;
-    }
-
-    // Get constants
-    Const k1 = consts[expr1.const1];
-    Const k2 = consts[expr2.const1];
-
-    // Handle cases by type
-    if (k1.variant == ConstVariant.Integer && k2.variant == ConstVariant.Integer) {
-      if (e.variant == ExprVariant.Plus) {
-        return constInteger(k1.integer + k2.integer);
-      } else if (e.variant == ExprVariant.Equal) {
-        return constBoolean(k1.integer == k2.integer);
-      } else if (e.variant == ExprVariant.LessEqual) {
-        return constBoolean(k1.integer <= k2.integer);
-      }
-    } else if (k1.variant == ConstVariant.Boolean && k2.variant == ConstVariant.Boolean) {
-      if (e.variant == ExprVariant.Equal) {
-        return constBoolean(k1.boolean == k2.boolean);
-      } else if (e.variant == ExprVariant.And) {
-        return constBoolean(k1.boolean && k2.boolean);
-      }
-    }
-
-    // Couldn't reduce, return same (indicates type error)
-    return expressionId;
   }
 
   /// Evaluation helpers
   /// ------------------
+
+  function handleObservation(uint key, bytes8 name, bytes8 label, uint time)
+  internal returns (int) {
+    Agreement a = agreements[key];
+    address feedAddress = a.addressFor[name];
+    Feed feed = Feed(feedAddress);
+    return feed.get(sha3(label, time));
+  }
 
   function transferTokens(uint agreementId, bytes8 tIdent, bytes8 p1Ident,
   bytes8 p2Ident, int amount) internal {
@@ -583,30 +284,6 @@ contract ContractEngine is ContractBuilder, InternalFeed  {
     Token token = Token(tokenAddress);
     bool res = token.transferFrom(party1Address, party2Address, uint256(amount));
     if (!res) throw;
-  }
-
-  function pushEnv(bytes8 identifier, uint exprId) internal {
-    uint idx = evaluationEnv.length;
-    evaluationEnv.length++;
-    evaluationEnv[idx] = Assignment({
-      identifier: identifier,
-      expr: exprId
-    });
-  }
-
-  function popEnv() internal {
-    uint idx = evaluationEnv.length - 1;
-    delete evaluationEnv[idx];
-    evaluationEnv.length--;
-  }
-
-  function lookupEnv(bytes8 identifier) internal returns (uint) {
-    for (uint i = evaluationEnv.length - 1; i >= 0; i--) {
-      if (evaluationEnv[i].identifier == identifier) {
-        return evaluationEnv[i].expr;
-      }
-    }
-    return 0;
   }
 
   /// Various other helpers

@@ -7,9 +7,9 @@ var addressGBP = "0xc79ccc291b89aa5aa24f40f5fe7f6d02512eaf0d";
 var addressFeed = "0x6b5986b039c3148e46303f2d12d705839093f6ac";
 
 // Intermediate values (populate as executing steps)
-var addressEngine = "0x58cc27c529f85c9fb1ed06b0d27430fb47e47fca";
-var contractIds = [12];
-var agreementIds = [1];
+var addressEngine = "0x9021f987f24d549482ab9f6dc7d93fc5e803bc36";
+var contractIds = [6];
+var agreementIds = [0];
 
 // Recompile and unlock all accounts
 lib.recompile(function(e) {});
@@ -31,7 +31,7 @@ var createEngine = function() {
 var createPortfolio = function() {
   var engine = lib.ContractEngine.at(addressEngine);
   var t = Math.floor(Date.now() / 1000) + 60; // *60*24
-  engine.fxForwardContract("X", "Y", "USD", "DKK", t, 10000, 7, { from: master, gas: 10000000 }, function(e, tx) {
+  engine.fxForwardContract("X", "Z", "USD", "DKK", t, 10000, 7, { from: master, gas: 10000000 }, function(e, tx) {
     if (e) { console.log(e); return; }
     var events = engine.allEvents("latest", function(err, event) {
       if (event.transactionHash == tx) {
@@ -161,7 +161,7 @@ var debug = function() {
 }
 
 // Do:
-// createEngine();
+createEngine();
 // permitEngine();
 // createPortfolio();
 // registerPortfolio();
@@ -171,7 +171,7 @@ var debug = function() {
 // killPortfolio(party2);
 // evaluatePortfolio();
 
-debug();
+// debug();
 //
 
 // var status = debug.traceTransaction
