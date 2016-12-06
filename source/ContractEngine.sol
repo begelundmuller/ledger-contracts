@@ -16,7 +16,7 @@ import './Token.sol';
 //// - sha3("killed", agreementId)
 ////
 //// The contract engine emits several events that clients may monitor:
-//// - event ContractCreated(uint256 contractId)
+//// - event ContractCreated(string description, uint256 contractId)
 //// - event AgreementRegistered(uint256 agreementId)
 //// - event AgreementSigned(uint256 agreementId)
 //// - event AgreementSettled(uint256 agreementId)
@@ -39,13 +39,15 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
 
     uint256 signedOn; // First time where ∀p <- partiesInContract . signed[p]
     uint256 killedOn; // First time where ∀p <- partiesInContract . killSigned[p]
+
+    uint256 timeDelta; // Size of time steps in seconds; must be synced with feeds
   }
 
   /// Events
   /// ------
 
   /// Event for the construction of a new contract
-  event ContractCreated(uint256 contractId);
+  event ContractCreated(string description, uint256 contractId);
 
   /// Event for the registration of a new agreement
   event AgreementRegistered(uint256 agreementId);
@@ -60,14 +62,13 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
   event AgreementKilled(uint256 agreementId);
 
   /// Debugging
+  /// ---------
+
   event LogU(string name, uint val);
   event LogI(string name, int val);
   event LogB(string name, bool val);
   event LogS(string name, bytes8 val);
   event LogA(string name, address val);
-
-  /// Debugging
-  /// ---------
 
   function agreementParties(uint agreementId, uint partyIdx) returns (bytes8) {
     return agreements[agreementId].parties[partyIdx];
@@ -112,6 +113,7 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
     a.currentContract = contractId;
     a.signedOn = 0;
     a.killedOn = 0;
+    a.timeDelta = 30;
 
     // Mapping names to addresses
     a.addressFor[party1Name] = party1Address;
@@ -121,7 +123,7 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
     a.addressFor[feed1Name] = feed1Address;
 
     // Check (throws if not okay)
-    checkContract(idx, a.currentContract);
+    checkContract(idx, contractId);
 
     // Done
     AgreementRegistered(idx);
@@ -150,7 +152,7 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
       // If signed by all, set signedOn
       if (signed) {
         a.signedOn = block.timestamp;
-        set(sha3("signed", agreementId), 1); // Signed observable
+        set(sha3("signed", agreementId), currentTime(a.timeDelta), 1); // Signed observable
         AgreementSigned(agreementId); // Signed event
       }
   }
@@ -177,7 +179,7 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
       // If signed, set killedOn
       if (signed) {
         a.killedOn = block.timestamp;
-        set(sha3("killed", agreementId), 1); // Killed observable
+        set(sha3("killed", agreementId), currentTime(a.timeDelta), 1); // Killed observable
         AgreementKilled(agreementId); // Killed event
       }
   }
@@ -195,7 +197,7 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
     if (currentContract.variant == ContrVariant.Empty) return;
 
     // Evaluate
-    a.currentContract = evaluateContract(agreementId, a.currentContract, 1);
+    a.currentContract = evaluateContract(agreementId, a.timeDelta, a.currentContract, 1);
 
     // Check if now settled
     currentContract = contrs[a.currentContract];
@@ -204,45 +206,10 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
     }
   }
 
-  /// Currently offered contracts
-  /// ---------------------------
+  /// Checker overrides
+  /// -----------------
 
-  /// t ↑ amount * ( ccy1(party1 → party2) & strike * ccy2(party2 → party1) )
-  function fxForwardContract(bytes8 party1, bytes8 party2, bytes8 ccy1,
-    bytes8 ccy2, int t, int amount, int strike)
-  returns (uint contractId) {
-    // Create the transfer sub-contr
-    uint transfer = contrAnd(
-      contrTransfer(
-        ccy1,
-        party1,
-        party2
-      ),
-      contrScale(
-        exprConstant(constInteger(strike)),
-        contrTransfer(
-          ccy2,
-          party2,
-          party1
-        )
-      )
-    );
-
-    // Create the forward using transfer
-    contractId = contrAfter(
-      constInteger(t),
-      contrScale(
-        exprConstant(constInteger(amount)),
-        transfer
-      )
-    );
-
-    ContractCreated(contractId);
-  }
-
-  /// Checking agreements
-  /// -------------------
-
+  /// Called when the checker encounters a name in a contract
   function checkerEncounteredName(uint key, NameKind kind, bytes8 name) internal {
     // Check name is mapped to an address in the agreement being checked
     Agreement a = agreements[key];
@@ -256,60 +223,122 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
     }
   }
 
-  /// Evaluation helpers
-  /// ------------------
+  /// Evaluator overrides
+  /// -------------------
 
-  function handleObservation(uint key, bytes8 name, bytes8 label, uint time)
+  /// Called when the evaluator encounters an observable
+  function handleObservation(uint key, bytes8 name, bytes32 digest, uint time)
   internal returns (int) {
     Agreement a = agreements[key];
     address feedAddress = a.addressFor[name];
     Feed feed = Feed(feedAddress);
-    return feed.get(sha3(label, time));
+    return feed.get(digest, time);
   }
 
-  function transferTokens(uint agreementId, bytes8 tIdent, bytes8 p1Ident,
-  bytes8 p2Ident, int amount) internal {
+  /// Called when the evaluator encounters a transfer
+  function handleTransfer(uint key, bytes8 tokenName, bytes8 from, bytes8 to, int scale)
+  internal returns (bool) {
     // Can't transfer negative amounts
-    if (amount < 0) throw;
+    if (scale < 0) throw;
 
     // Get agreement
-    Agreement a = agreements[agreementId];
+    Agreement a = agreements[key];
 
     // Translate identifiers
-    address tokenAddress = a.addressFor[tIdent];
-    address party1Address = a.addressFor[p1Ident];
-    address party2Address = a.addressFor[p2Ident];
+    address tokenAddress = a.addressFor[tokenName];
+    address fromAddress = a.addressFor[from];
+    address toAddress = a.addressFor[to];
 
     // Transfer
     Token token = Token(tokenAddress);
-    bool res = token.transferFrom(party1Address, party2Address, uint256(amount));
-    if (!res) throw;
-  }
+    bool res = token.transferFrom(fromAddress, toAddress, uint256(scale));
 
-  /// Various other helpers
-
-  function max(int a, int b) internal constant returns (int) {
-    if (a > b) {
-      return a;
+    // Handle result
+    if (res) {
+      return true;
     } else {
-      return b;
+      set(sha3("default", from), currentTime(a.timeDelta), 1); // Default observable
+      return false;
     }
   }
 
-  function min(int a, int b) internal constant returns (int) {
-    if (a > b) {
-      return b;
-    } else {
-      return a;
-    }
+  /// Offered contracts
+  /// -----------------
+
+  /// Zero-coupon bond
+  function zcb(bytes8 issuer, bytes8 holder, bytes8 ccy, int nominal, int price, int maturity)
+  returns (uint contractId) {
+    contractId = contrAnd(
+      contrScale(
+        exprConstant(constInteger(price)),
+        contrTransfer(
+          ccy,
+          holder,
+          issuer
+        )
+      ),
+      contrAfter(
+        constInteger(maturity),
+        contrScale(
+          exprConstant(constInteger(nominal)),
+          contrTransfer(
+            ccy,
+            issuer,
+            holder
+          )
+        )
+      )
+    );
+    ContractCreated("zcb", contractId);
   }
 
-  function specialPlus(int a, int b) internal constant returns (int) {
-    if (b == 0) {
-      return 0;
-    } else {
-      return a + b;
-    }
+  /// ccy1(party1 → party2) & strike * ccy2(party2 → party1)
+  function fxSpot(bytes8 party1, bytes8 party2, bytes8 ccy1, bytes8 ccy2, int amount, int strike)
+  returns (uint contractId) {
+    contractId = contrScale(
+      exprConstant(constInteger(amount)),
+      contrAnd(
+        contrTransfer(
+          ccy1,
+          party1,
+          party2
+        ),
+        contrScale(
+          exprConstant(constInteger(strike)),
+          contrTransfer(
+            ccy2,
+            party2,
+            party1
+          )
+        )
+      )
+    );
+    ContractCreated("fxSingle", contractId);
+  }
+
+  /// t ↑ amount * (ccy1(party1 → party2) & strike * ccy2(party2 → party1))
+  function fxForward(bytes8 party1, bytes8 party2, bytes8 ccy1,
+    bytes8 ccy2, int t, int amount, int strike)
+  returns (uint contractId) {
+    contractId = contrAfter(
+      constInteger(t),
+      fxSpot(party1, party2, ccy1, ccy2, amount, strike)
+    );
+    ContractCreated("fxForward", contractId);
+  }
+
+  ///
+  function fxEuropeanOption(bytes8 party1, bytes8 party2, bytes8 ccy1,
+    bytes8 ccy2, int t, int amount, int strike, bytes8 feed, address decider)
+  returns (uint contractId) {
+    contractId = contrAfter(
+      constInteger(t),
+      contrScale(
+        exprConstant(constInteger(0)),
+        fxSpot(party1, party2, ccy1, ccy2, amount, strike)
+      )
+    );
+    ContractCreated("fxForward", contractId);
   }
 
 }

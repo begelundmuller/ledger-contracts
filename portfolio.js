@@ -7,7 +7,7 @@ var addressGBP = "0xc79ccc291b89aa5aa24f40f5fe7f6d02512eaf0d";
 var addressFeed = "0x6b5986b039c3148e46303f2d12d705839093f6ac";
 
 // Intermediate values (populate as executing steps)
-var addressEngine = "0x9021f987f24d549482ab9f6dc7d93fc5e803bc36";
+var addressEngine = "0x856359d58565f41808a7fe66148dba3d987dae14";
 var contractIds = [6];
 var agreementIds = [0];
 
@@ -31,7 +31,7 @@ var createEngine = function() {
 var createPortfolio = function() {
   var engine = lib.ContractEngine.at(addressEngine);
   var t = Math.floor(Date.now() / 1000) + 60; // *60*24
-  engine.fxForwardContract("X", "Z", "USD", "DKK", t, 10000, 7, { from: master, gas: 10000000 }, function(e, tx) {
+  engine.fxForwardContract("X", "Y", "USD", "DKK", t, 10000, 7, { from: master, gas: 10000000 }, function(e, tx) {
     if (e) { console.log(e); return; }
     var events = engine.allEvents("latest", function(err, event) {
       if (event.transactionHash == tx) {
@@ -48,6 +48,7 @@ var registerPortfolio = function() {
   var engine = lib.ContractEngine.at(addressEngine);
   contractIds.forEach(function(contractId) {
     engine.register(contractId, "X", party1, "Y", party2, "USD", addressUSD, "DKK", addressDKK, "Feed", addressFeed, { from: master, gas: 10000000 }, function(e, tx) {
+      console.log(tx);
       if (e) { console.log(e); return; }
       var events = engine.allEvents("latest", function(err, event) {
         if (event.transactionHash == tx) {
@@ -115,10 +116,17 @@ var evaluatePortfolio = function() {
     engine.evaluate(agreementId, { from: party1, gas: 10000000 }, function(e, tx) {
       console.log("Transaction: " + tx);
       if (e) { console.log(e); return; }
-      var events = engine.allEvents("latest", function(err, event) {
+      var events1 = engine.allEvents("latest", function(err, event) {
         if (event.transactionHash == tx) {
           console.log(event);
-          // events.stopWatching();
+          events1.stopWatching();
+        }
+      });
+      var usd = lib.CurrencyToken.at(addressUSD);
+      var events2 = usd.allEvents("latest", function(err, event) {
+        if (event.transactionHash == tx) {
+          console.log(event);
+          events2.stopWatching();
         }
       });
     });
@@ -133,10 +141,10 @@ var debug = function() {
   // var engine = lib.ContractEngine.at(addressEngine);
   var usd = lib.CurrencyToken.at(addressUSD);
   var dkk = lib.CurrencyToken.at(addressDKK);
-  console.log(usd.balanceOf(party1));
-  console.log(usd.balanceOf(party2));
-  console.log(dkk.balanceOf(party1));
-  console.log(dkk.balanceOf(party2));
+  // console.log(usd.balanceOf(party1));
+  // console.log(usd.balanceOf(party2));
+  // console.log(dkk.balanceOf(party1));
+  // console.log(dkk.balanceOf(party2));
   // console.log(engine.agreements(1));
   // console.log(engine.contrs(13));
 
@@ -154,14 +162,14 @@ var debug = function() {
   //   });
   // });
 
-    var events = usd.allEvents({fromBlock:"latest", toBlock:"latest"}, function(err, event) {
-        console.log(event);
+    var events = usd.allEvents({fromBlock:1810, toBlock:"latest"}, function(err, event) {
+      console.log(event);
     });
 
 }
 
 // Do:
-createEngine();
+// createEngine();
 // permitEngine();
 // createPortfolio();
 // registerPortfolio();
@@ -171,7 +179,7 @@ createEngine();
 // killPortfolio(party2);
 // evaluatePortfolio();
 
-// debug();
+debug();
 //
 
 // var status = debug.traceTransaction

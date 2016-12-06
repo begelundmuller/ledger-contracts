@@ -9,14 +9,14 @@ contract ContractBuilder {
   enum ConstVariant {
     Boolean,
     Integer,
-    Label
+    Digest
   }
 
   struct Const {
     ConstVariant variant;
     int integer;
     bool boolean;
-    bytes8 label;
+    bytes32 digest;
   }
 
   /// Expressions
@@ -29,7 +29,8 @@ contract ContractBuilder {
     Equal,
     LessEqual,
     And,
-    Not
+    Not,
+    IfElse
   }
 
   struct Expr {
@@ -41,6 +42,7 @@ contract ContractBuilder {
     uint const3;
     uint expr1;
     uint expr2;
+    uint expr3;
   }
 
   /// Contracts
@@ -90,7 +92,7 @@ contract ContractBuilder {
       variant: ConstVariant.Boolean,
       boolean: b,
       integer: 0,
-      label: ""
+      digest: ""
     });
     return idx;
   }
@@ -102,19 +104,19 @@ contract ContractBuilder {
       variant: ConstVariant.Integer,
       boolean: false,
       integer: i,
-      label: ""
+      digest: ""
     });
     return idx;
   }
 
-  /// Const for a label
-  function constLabel(bytes8 l) internal returns (uint) {
+  /// Const for a digest
+  function constDigest(bytes32 d) internal returns (uint) {
     uint idx = nextConst();
     consts[idx] = Const({
-      variant: ConstVariant.Label,
+      variant: ConstVariant.Digest,
       boolean: false,
       integer: 0,
-      label: l
+      digest: d
     });
     return idx;
   }
@@ -133,7 +135,8 @@ contract ContractBuilder {
       const2: 0,
       const3: 0,
       expr1: 0,
-      expr2: 0
+      expr2: 0,
+      expr3: 0
     });
     return idx;
   }
@@ -149,7 +152,8 @@ contract ContractBuilder {
       const2: 0,
       const3: 0,
       expr1: 0,
-      expr2: 0
+      expr2: 0,
+      expr3: 0
     });
     return idx;
   }
@@ -166,14 +170,15 @@ contract ContractBuilder {
       const2: 0,
       const3: 0,
       expr1: e1,
-      expr2: 0
+      expr2: 0,
+      expr3: 0
     });
     return idx;
   }
 
   /// Expr for an accumulation
   function exprAcc(bytes8 i1, bytes8 i2, uint e1, uint e2, uint k1,
-  uint k2, uint k3) internal returns (uint) {
+  uint k2) internal returns (uint) {
     uint idx = nextExpr();
     exprs[idx] = Expr({
       variant: ExprVariant.Acc,
@@ -181,9 +186,10 @@ contract ContractBuilder {
       identifier2: i2,
       const1: k1,
       const2: k2,
-      const3: k3,
+      const3: 0,
       expr1: e1,
-      expr2: e2
+      expr2: e2,
+      expr3: 0
     });
     return idx;
   }
@@ -200,7 +206,8 @@ contract ContractBuilder {
       const2: 0,
       const3: 0,
       expr1: e1,
-      expr2: e2
+      expr2: e2,
+      expr3: 0
     });
     return idx;
   }
@@ -217,7 +224,8 @@ contract ContractBuilder {
       const2: 0,
       const3: 0,
       expr1: e1,
-      expr2: e2
+      expr2: e2,
+      expr3: 0
     });
     return idx;
   }
@@ -234,7 +242,8 @@ contract ContractBuilder {
       const2: 0,
       const3: 0,
       expr1: e1,
-      expr2: e2
+      expr2: e2,
+      expr3: 0
     });
     return idx;
   }
@@ -250,7 +259,8 @@ contract ContractBuilder {
       const2: 0,
       const3: 0,
       expr1: e1,
-      expr2: e2
+      expr2: e2,
+      expr3: 0
     });
     return idx;
   }
@@ -266,7 +276,25 @@ contract ContractBuilder {
       const2: 0,
       const3: 0,
       expr1: e,
-      expr2: 0
+      expr2: 0,
+      expr3: 0
+    });
+    return idx;
+  }
+
+  /// Expr for if-then-else
+  function exprIfElse(uint e1, uint e2, uint e3) internal returns (uint) {
+    uint idx = nextExpr();
+    exprs[idx] = Expr({
+      variant: ExprVariant.IfElse,
+      identifier1: "",
+      identifier2: "",
+      const1: 0,
+      const2: 0,
+      const3: 0,
+      expr1: e1,
+      expr2: e2,
+      expr3: e3
     });
     return idx;
   }

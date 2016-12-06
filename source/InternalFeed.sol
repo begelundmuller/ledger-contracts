@@ -13,13 +13,13 @@ contract InternalFeed is Feed {
   }
 
   /// Gets value for key
-  function get(bytes32 key) constant returns (int256 value) {
-    return datastore[key];
+  function get(bytes32 key, uint time) constant returns (int256 value) {
+    return datastore[sha3(key, time)];
   }
 
   /// Sets new value for event
-  function set(bytes32 key, int256 value) internal {
-    datastore[key] = value;
+  function set(bytes32 key, uint time, int256 value) internal {
+    datastore[sha3(key, time)] = value;
   }
 
 }

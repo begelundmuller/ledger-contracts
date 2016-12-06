@@ -62,6 +62,10 @@ contract ContractChecker is ContractBuilder {
       checkExpression(key, e.expr2);
     } else if (e.variant == ExprVariant.Not) {
       checkExpression(key, e.expr1);
+    } else if (e.variant == ExprVariant.IfElse) {
+      checkExpression(key, e.expr1);
+      checkExpression(key, e.expr2);
+      checkExpression(key, e.expr3);
     }
   }
 
