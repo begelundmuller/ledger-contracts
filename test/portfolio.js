@@ -7,7 +7,7 @@ var addressGBP = "0xc79ccc291b89aa5aa24f40f5fe7f6d02512eaf0d";
 var addressFeed = "0x6b5986b039c3148e46303f2d12d705839093f6ac";
 
 // Intermediate values (populate as executing steps)
-var addressEngine = "0x856359d58565f41808a7fe66148dba3d987dae14";
+var addressManager = "0x856359d58565f41808a7fe66148dba3d987dae14";
 var contractIds = [6];
 var agreementIds = [0];
 
@@ -20,20 +20,20 @@ var master = lib.web3.eth.accounts[0];
 var party1 = lib.web3.eth.accounts[1];
 var party2 = lib.web3.eth.accounts[2];
 
-// Creates the engine
-var createEngine = function() {
-  lib.launchContractEngine(master, function(engine) {
-    console.log("Engine: " + engine.address);
+// Creates the manager
+var createManager = function() {
+  lib.launchContractManager(master, function(manager) {
+    console.log("Manager: " + manager.address);
   });
 }
 
-// Creates some contracts within the engine
+// Creates some contracts within the manager
 var createPortfolio = function() {
-  var engine = lib.ContractEngine.at(addressEngine);
+  var manager = lib.ContractManager.at(addressManager);
   var t = Math.floor(Date.now() / 1000) + 60; // *60*24
-  engine.fxForwardContract("X", "Y", "USD", "DKK", t, 10000, 7, { from: master, gas: 10000000 }, function(e, tx) {
+  manager.fxForwardContract("X", "Y", "USD", "DKK", t, 10000, 7, { from: master, gas: 10000000 }, function(e, tx) {
     if (e) { console.log(e); return; }
-    var events = engine.allEvents("latest", function(err, event) {
+    var events = manager.allEvents("latest", function(err, event) {
       if (event.transactionHash == tx) {
         console.log(event.args.contractId.toString());
         events.stopWatching();
@@ -45,12 +45,12 @@ var createPortfolio = function() {
 
 // Registers the contracts
 var registerPortfolio = function() {
-  var engine = lib.ContractEngine.at(addressEngine);
+  var manager = lib.ContractManager.at(addressManager);
   contractIds.forEach(function(contractId) {
-    engine.register(contractId, "X", party1, "Y", party2, "USD", addressUSD, "DKK", addressDKK, "Feed", addressFeed, { from: master, gas: 10000000 }, function(e, tx) {
+    manager.register(contractId, "X", party1, "Y", party2, "USD", addressUSD, "DKK", addressDKK, "Feed", addressFeed, { from: master, gas: 10000000 }, function(e, tx) {
       console.log(tx);
       if (e) { console.log(e); return; }
-      var events = engine.allEvents("latest", function(err, event) {
+      var events = manager.allEvents("latest", function(err, event) {
         if (event.transactionHash == tx) {
           console.log(event.args.agreementId.toString());
           // console.log(event);
@@ -61,29 +61,29 @@ var registerPortfolio = function() {
   });
 }
 
-// Signs the contracts in the engine
-var permitEngine = function(party) {
-  var engine = lib.ContractEngine.at(addressEngine);
+// Signs the contracts in the manager
+var permitManager = function(party) {
+  var manager = lib.ContractManager.at(addressManager);
   var usd = lib.CurrencyToken.at(addressUSD);
   var dkk = lib.CurrencyToken.at(addressDKK);
   var gbp = lib.CurrencyToken.at(addressDKK);
   [usd, dkk, gbp].forEach(function(ccy) {
-    ccy.permit(addressEngine, true, { from: party1, gas: 10000000 }, function(e, tx) {
+    ccy.permit(addressManager, true, { from: party1, gas: 10000000 }, function(e, tx) {
       if (e) { console.log(e); return; }
     });
-    ccy.permit(addressEngine, true, { from: party2, gas: 10000000 }, function(e, tx) {
+    ccy.permit(addressManager, true, { from: party2, gas: 10000000 }, function(e, tx) {
       if (e) { console.log(e); return; }
     });
   });
 }
 
-// Signs the contracts in the engine
+// Signs the contracts in the manager
 var signPortfolio = function(party) {
-  var engine = lib.ContractEngine.at(addressEngine);
+  var manager = lib.ContractManager.at(addressManager);
   agreementIds.forEach(function(agreementId) {
-    engine.sign(agreementId, { from: party, gas: 10000000 }, function(e, tx) {
+    manager.sign(agreementId, { from: party, gas: 10000000 }, function(e, tx) {
       if (e) { console.log(e); return; }
-      var events = engine.allEvents("latest", function(err, event) {
+      var events = manager.allEvents("latest", function(err, event) {
         if (event.transactionHash == tx) {
           console.log(event.args.agreementId.toString() + " == " + agreementId + " ==> signed!");
           events.stopWatching();
@@ -93,13 +93,13 @@ var signPortfolio = function(party) {
   });
 }
 
-// Signs the contracts in the engine
+// Signs the contracts in the manager
 var killPortfolio = function(party) {
-  var engine = lib.ContractEngine.at(addressEngine);
+  var manager = lib.ContractManager.at(addressManager);
   agreementIds.forEach(function(agreementId) {
-    engine.kill(agreementId, { from: party, gas: 10000000 }, function(e, tx) {
+    manager.kill(agreementId, { from: party, gas: 10000000 }, function(e, tx) {
       if (e) { console.log(e); return; }
-      var events = engine.allEvents("latest", function(err, event) {
+      var events = manager.allEvents("latest", function(err, event) {
         if (event.transactionHash == tx) {
           console.log(event.args.agreementId.toString() + " == " + agreementId + " ==> killed!");
           events.stopWatching();
@@ -111,12 +111,12 @@ var killPortfolio = function(party) {
 
 //
 var evaluatePortfolio = function() {
-  var engine = lib.ContractEngine.at(addressEngine);
+  var manager = lib.ContractManager.at(addressManager);
   agreementIds.forEach(function(agreementId) {
-    engine.evaluate(agreementId, { from: party1, gas: 10000000 }, function(e, tx) {
+    manager.evaluate(agreementId, { from: party1, gas: 10000000 }, function(e, tx) {
       console.log("Transaction: " + tx);
       if (e) { console.log(e); return; }
-      var events1 = engine.allEvents("latest", function(err, event) {
+      var events1 = manager.allEvents("latest", function(err, event) {
         if (event.transactionHash == tx) {
           console.log(event);
           events1.stopWatching();
@@ -136,51 +136,37 @@ var evaluatePortfolio = function() {
   // Call evaluate on contracts, print all transfers that transpire
 }
 
-//
-var debug = function() {
-  // var engine = lib.ContractEngine.at(addressEngine);
-  var usd = lib.CurrencyToken.at(addressUSD);
-  var dkk = lib.CurrencyToken.at(addressDKK);
-  // console.log(usd.balanceOf(party1));
-  // console.log(usd.balanceOf(party2));
-  // console.log(dkk.balanceOf(party1));
-  // console.log(dkk.balanceOf(party2));
-  // console.log(engine.agreements(1));
-  // console.log(engine.contrs(13));
+// For running:
 
-  // Check permitted
-
-  // Create tokens
-  // console.log(usd.balanceOf(party1) + "< 5");
-  // console.log(usd.permissions(party1, party1) + "< 5");
-  // usd.transferFrom(party1, party2, 5, { from: party1, value: 0, gas: 1000000 }, function(e, tx) {
-  //   console.log(tx);
-  //   var events = usd.allEvents("latest", function(err, event) {
-  //     if (event.transactionHash == tx) {
-  //       console.log(event);
-  //     }
-  //   });
-  // });
-
-    var events = usd.allEvents({fromBlock:1810, toBlock:"latest"}, function(err, event) {
-      console.log(event);
-    });
-
-}
-
-// Do:
-// createEngine();
-// permitEngine();
+// createManager();
+// permitManager();
 // createPortfolio();
 // registerPortfolio();
 // signPortfolio(party1);
 // signPortfolio(party2);
+// evaluatePortfolio();
 // killPortfolio(party1);
 // killPortfolio(party2);
-// evaluatePortfolio();
 
-debug();
-//
+// For debugging:
 
-// var status = debug.traceTransaction
- // status.structLogs
+var debug = function() {
+  var manager = lib.ContractManager.at(addressManager);
+  var usd = lib.CurrencyToken.at(addressUSD);
+  var dkk = lib.CurrencyToken.at(addressDKK);
+
+  console.log(usd.balanceOf(party1));
+  console.log(usd.balanceOf(party2));
+  console.log(dkk.balanceOf(party1));
+  console.log(dkk.balanceOf(party2));
+
+  var events = usd.allEvents("latest", function(err, event) {
+    console.log(event);
+  });
+}
+
+// debug();
+
+// var tx = "";
+// var status = web3.debug.traceTransaction(tx);
+// console.log(status.structLogs);

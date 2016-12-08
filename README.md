@@ -1,77 +1,14 @@
-# Financial contracts on the Ethereum ledger
+# Main features
 
-### Getting started
+Model of a financial system with currencies, data feeds and a DSL for writing contracts. Main features:
 
-Initialize a new, "blank" chain with the custom genesis file:
+- Many common contracts can be expressed
+- Contracts evaluate in accordance with a reduction semantics
+- Clear separation of tokens, data feeds, contract evaluation and contract management
+- Multiple 'contract managers' can rely on the same 'contract evaluator'
+- Contract managers may automatically handle routine tasks such as
+    - Gathering signatures
+    - Executing transfers
+    - Declaring defaults
 
-```
-mkdir ./chain
-geth --datadir ./chain/ init genesis.json
-```
-
-Launch the console:
-
-```
-geth --dev --rpc --rpcaddr="0.0.0.0" --rpccorsdomain="*" --rpcapi="admin,db,eth,debug,miner,net,shh,txpool,personal,web3" --targetgaslimit 1000000000000 --datadir ./chain console
-```
-
-Create three accounts:
-
-```
-> personal.newAccount("123456")
-"[Account 1]"
-> personal.newAccount("123456")
-"[Account 2]"
-> personal.newAccount("123456")
-"[Account 3]"
-```
-
-Mine some Ether:
-
-```
-> miner.start()
-// Wait for a few blocks to be mined
-> miner.stop()
-```
-
-Transfer some of the mined Ether to the other accounts:
-
-```
-> eth.sendTransaction({from: eth.accounts[0], to: eth.accounts[1], value: web3.toWei(10, "ether")})
-```
-
-Check balance of each account:
-
-```
-> web3.fromWei(eth.getBalance(eth.accounts[i]))
-```
-
-Set the console to mine only when there are unmined transactions:
-
-```
-> loadScript('./mine.js')
-```
-
-If you would like to interact directly with the console, you might want to launch a new console in a new window (to avoid being interrupted by mining logs):
-
-```
-geth --dev attach ipc:./chain/geth.ipc
-```
-
-Now compile the Solidity contracts (must have `solc` installed):
-
-```
-bash ./recompile.sh
-```
-
-Create some tokens and a feed:
-
-```
-node bootstrap.js
-```
-
-Now you can create and test the sample portfolio with
-
-```
-node portfolio.js
-```
+The contract language is based on work [by Bahr, Berthold and Elsman](http://hiperfit.dk/pdf/icfp15-contracts-final.pdf).

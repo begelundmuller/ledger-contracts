@@ -17,9 +17,9 @@ exports.getCode = function(name) {
   return "0x" + fs.readFileSync('./source/' + name + '.bin', 'utf8');
 }
 
-// Object for ContractEngine
-exports.ContractEngine = (function() {
-  var contract = web3.eth.contract(_this.getAbi('ContractEngine'));
+// Object for ContractManager
+exports.ContractManager = (function() {
+  var contract = web3.eth.contract(_this.getAbi('ContractManager'));
   return contract;
 })();
 
@@ -36,12 +36,12 @@ exports.SimpleFeed = (function() {
 })();
 
 // Launches a token with the given name and creator
-exports.launchContractEngine = function(creator, cb) {
-  var contract = _this.ContractEngine;
-  var code = _this.getCode('ContractEngine');
+exports.launchContractManager = function(creator, cb) {
+  var contract = _this.ContractManager;
+  var code = _this.getCode('ContractManager');
   var token = contract.new({from: creator, data: code, gas: 10000000}, function(e, contract) {
-    if (e)                      { console.log("Error launching engine:" + e); }
-    else if (!contract.address) { console.log("Engine waiting to be mined..."); }
+    if (e)                      { console.log("Error launching manager:" + e); }
+    else if (!contract.address) { console.log("Manager waiting to be mined..."); }
     else                        { cb(contract); }
   });
 }

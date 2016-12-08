@@ -1,3 +1,3 @@
 curr=$(pwd)
-solc -o $curr/source --bin --abi $curr/source/CurrencyToken.sol
-solc -o $curr/source --bin --abi $curr/source/ContractEngine.sol
+solc -o $curr/contracts --bin --abi $curr/contracts/CurrencyToken.sol
+solc -o $curr/contracts --bin --abi $curr/contracts/ContractManager.sol

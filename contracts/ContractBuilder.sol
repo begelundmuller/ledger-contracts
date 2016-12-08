@@ -159,14 +159,14 @@ contract ContractBuilder {
   }
 
   /// Expr for an observation
-  function exprObservation(bytes8 feed, uint e1)
+  function exprObservation(bytes8 feed, uint k1, uint e1)
   internal returns (uint) {
     uint idx = nextExpr();
     exprs[idx] = Expr({
       variant: ExprVariant.Observation,
       identifier1: feed,
       identifier2: 0,
-      const1: 0,
+      const1: k1,
       const2: 0,
       const3: 0,
       expr1: e1,

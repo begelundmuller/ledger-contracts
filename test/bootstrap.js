@@ -47,7 +47,7 @@ lib.launchFeed(master, function(feed) {
   }, 60000);
 });
 
-// Testing stuf
+// For testing:
 // lib.web3.personal.unlockAccount(master, "123456");
 // var token = lib.CurrencyToken.at("0xc5be00480f5bd3d38e665d4ae347116b31ca1685");
 // console.log(token.balanceOf.call(party1).toString());

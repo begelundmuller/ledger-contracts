@@ -160,7 +160,7 @@ contract ContractEvaluator is ContractChecker {
 
     // Evaluate
     bool result = false;
-    for (uint i = 0; i < uint(n) && !result; i++) {
+    for (uint i = 0; i <= uint(n) && !result; i++) {
       // Calculate time
       int t = t0 + int(i * timeDelta);
 
@@ -224,22 +224,21 @@ contract ContractEvaluator is ContractChecker {
   /// Evaluates an Obs expression
   function evaluateExpressionObservation(uint key, uint timeDelta, uint expressionId)
   internal returns (uint) {
-    // Get expression and evaluate sub-expressions
+    // Get expression and evaluate sub-expression
     Expr e = exprs[expressionId];
     Expr e1 = exprs[evaluateExpression(key, timeDelta, e.expr1)];
-    Expr e2 = exprs[evaluateExpression(key, timeDelta, e.expr2)];
 
     // If both don't evaluate to a constant, can't yet do anything
-    if (e1.variant != ExprVariant.Constant || e2.variant != ExprVariant.Constant) {
+    if (e1.variant != ExprVariant.Constant) {
       return expressionId;
     }
 
     // Get constants
-    Const k1 = consts[e1.const1];
-    Const k2 = consts[e2.const1];
+    Const digestConst = consts[e.const1];
+    Const timeConst = consts[e1.const1];
 
     // Get value from feed
-    int k = handleObservation(key, e.identifier1, k1.digest, uint(k2.integer));
+    int k = handleObservation(key, e.identifier1, digestConst.digest, uint(timeConst.integer));
     if (k == 0) {
       return expressionId;
     } else {

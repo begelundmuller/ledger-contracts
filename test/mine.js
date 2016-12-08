@@ -1,4 +1,4 @@
-var mining_threads = 1
+var mining_threads = 1;
 
 function checkWork() {
     if (eth.getBlock("pending").transactions.length > 0) {

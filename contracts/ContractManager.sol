@@ -1,7 +1,7 @@
 pragma solidity ^0.4.2;
 
 import './ContractEvaluator.sol';
-import './InternalFeed.sol';
+import './Feed.sol';
 import './Token.sol';
 
 //// Smart contract that manages and settles contracts
@@ -11,17 +11,17 @@ import './Token.sol';
 //// - Call +evaluate+ (repeatedly) to process contract
 //// - To terminate an agreement, all parties must call +kill+
 ////
-//// The contract engine is also a Feed with two observables
+//// The contract manager is also a Feed with two observables
 //// - sha3("signed", agreementId)
 //// - sha3("killed", agreementId)
 ////
-//// The contract engine emits several events that clients may monitor:
+//// The contract manager emits several events that clients may monitor:
 //// - event ContractCreated(string description, uint256 contractId)
 //// - event AgreementRegistered(uint256 agreementId)
 //// - event AgreementSigned(uint256 agreementId)
 //// - event AgreementSettled(uint256 agreementId)
 //// - event AgreementKilled(uint256 agreementId)
-contract ContractEngine is ContractEvaluator, InternalFeed  {
+contract ContractManager is ContractEvaluator, Feed  {
 
   /// Structs
   /// -------
@@ -88,11 +88,14 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
   /// Stores all registered agreements
   Agreement[] public agreements;
 
+  /// Data store for feed (keys are sha3 hashes)
+  mapping (bytes32 => int256) datastore;
+
   /// External functions
   /// ------------------
 
   /// Initializer
-  function ContractEngine() ContractEvaluator() InternalFeed() {
+  function ContractManager() ContractEvaluator() Feed() {
   }
 
   /// Register a new agreement
@@ -204,6 +207,19 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
     if (currentContract.variant == ContrVariant.Empty) {
       AgreementSettled(agreementId);
     }
+  }
+
+  /// Feed functions
+  /// --------------
+
+  /// Gets value for key
+  function get(bytes32 key, uint time) constant returns (int256 value) {
+    return datastore[sha3(key, time)];
+  }
+
+  /// Sets new value for event
+  function set(bytes32 key, uint time, int256 value) internal {
+    datastore[sha3(key, time)] = value;
   }
 
   /// Checker overrides
@@ -328,17 +344,16 @@ contract ContractEngine is ContractEvaluator, InternalFeed  {
   }
 
   ///
-  function fxEuropeanOption(bytes8 party1, bytes8 party2, bytes8 ccy1,
-    bytes8 ccy2, int t, int amount, int strike, bytes8 feed, address decider)
+  function fxAmericanOption(bytes8 party1, bytes8 party2, bytes8 ccy1, bytes8 ccy2,
+    uint n, uint t0, int amount, int strike, bytes8 feed, bytes32 digest)
   returns (uint contractId) {
-    contractId = contrAfter(
-      constInteger(t),
-      contrScale(
-        exprConstant(constInteger(0)),
-        fxSpot(party1, party2, ccy1, ccy2, amount, strike)
-      )
+    uint spot = fxSpot(party1, party2, ccy1, ccy2, amount, strike);
+    uint obs = exprEqual(
+      exprObservation(feed, exprConstant(constDigest(digest)), exprVariable("t")),
+      exprConstant(constInteger(1))
     );
-    ContractCreated("fxForward", contractId);
+    contractId = contrIfWithin("t", obs, n, t0, spot, contrEmpty());
+    ContractCreated("fxAmericanOption", contractId);
   }
 
 }
