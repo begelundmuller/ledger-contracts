@@ -2,7 +2,7 @@ pragma solidity ^0.4.2;
 
 import './ContractChecker.sol';
 
-contract ContractEvaluator is ContractChecker {
+contract ContractEngine is ContractChecker {
 
   /// Represents a variable assignment
   struct Assignment {
@@ -14,7 +14,7 @@ contract ContractEvaluator is ContractChecker {
   Assignment[] internal evaluationEnv;
 
   /// Initializer
-  function ContractEvaluator() ContractChecker()  {
+  function ContractEngine() ContractChecker()  {
   }
 
   /// Implemented by subclass to handle transfer
@@ -70,21 +70,21 @@ contract ContractEvaluator is ContractChecker {
     Contr c = contrs[contractId];
 
     // Proceed by case analysis
-    if (c.variant == ContrVariant.Empty) {
+    if (c.variant == ContrVariant.Zero) {
       // Cannot reduce the empty contract
     } else if (c.variant == ContrVariant.After) {
       // Reduce if past time
       if (consts[c.const1].integer <= int256(block.timestamp)) {
         return evaluateContract(key, timeDelta, c.contr1, scale);
       }
-    } else if (c.variant == ContrVariant.And) {
-      return evaluateAndContract(key, timeDelta, contractId, scale);
+    } else if (c.variant == ContrVariant.Both) {
+      return evaluateBothContract(key, timeDelta, contractId, scale);
     } else if (c.variant == ContrVariant.Scale) {
       return evaluateScaleContract(key, timeDelta, contractId, scale);
     } else if (c.variant == ContrVariant.Transfer) {
       // Reduce to empty if handled; else stays the same
       if (handleTransfer(key, c.identifier1, c.identifier2, c.identifier3, scale)) {
-        return contrEmpty();
+        return contrZero();
       } else {
         return contractId;
       }
@@ -96,7 +96,7 @@ contract ContractEvaluator is ContractChecker {
     return contractId;
   }
 
-  function evaluateAndContract(uint key, uint timeDelta, uint contractId, int scale)
+  function evaluateBothContract(uint key, uint timeDelta, uint contractId, int scale)
   internal returns (uint) {
     // Get contract
     Contr c = contrs[contractId];
@@ -107,13 +107,13 @@ contract ContractEvaluator is ContractChecker {
     Contr outContract1 = contrs[outContractId1];
     Contr outContract2 = contrs[outContractId2];
 
-    // If either is empty, no longer need for And
-    if (outContract1.variant == ContrVariant.Empty) {
+    // If either is empty, no longer need for Both
+    if (outContract1.variant == ContrVariant.Zero) {
       return outContractId2;
-    } else if (outContract2.variant == ContrVariant.Empty) {
+    } else if (outContract2.variant == ContrVariant.Zero) {
       return outContractId1;
     } else {
-      return contrAnd(outContractId1, outContractId2);
+      return contrBoth(outContractId1, outContractId2);
     }
   }
 
@@ -134,7 +134,7 @@ contract ContractEvaluator is ContractChecker {
     // Get scale constant (if scaling by 0, return the empty contract)
     Const k = consts[outExpr.const1];
     if (k.integer == 0) {
-      return contrEmpty();
+      return contrZero();
     }
 
     // Evaluate subcontract with increased scale
@@ -142,7 +142,7 @@ contract ContractEvaluator is ContractChecker {
     Contr outContract = contrs[outContractId];
 
     // Keep scaling only if not empty
-    if (outContract.variant == ContrVariant.Empty) {
+    if (outContract.variant == ContrVariant.Zero) {
       return outContractId;
     } else {
       return contrScale(outExprId, outContractId);
@@ -204,8 +204,8 @@ contract ContractEvaluator is ContractChecker {
       return lookupEnv(e.identifier1);
     } else if (e.variant == ExprVariant.Observation) {
       return evaluateExpressionObservation(key, timeDelta, expressionId);
-    } else if (e.variant == ExprVariant.Acc) {
-      return evaluateExpressionAcc(key, timeDelta, expressionId);
+    } else if (e.variant == ExprVariant.Foldt) {
+      return evaluateExpressionFoldt(key, timeDelta, expressionId);
     } else if (e.variant == ExprVariant.Plus
     || e.variant == ExprVariant.Equal
     || e.variant == ExprVariant.LessEqual
@@ -246,8 +246,8 @@ contract ContractEvaluator is ContractChecker {
     }
   }
 
-  /// Evaluates an Acc expression
-  function evaluateExpressionAcc(uint key, uint timeDelta, uint expressionId)
+  /// Evaluates an Foldt expression
+  function evaluateExpressionFoldt(uint key, uint timeDelta, uint expressionId)
   internal returns (uint) {
     // Get
     Expr e = exprs[expressionId];

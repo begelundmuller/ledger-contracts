@@ -24,7 +24,7 @@ contract ContractBuilder {
     Constant,
     Variable,
     Observation,
-    Acc,
+    Foldt,
     Plus,
     Equal,
     LessEqual,
@@ -47,9 +47,9 @@ contract ContractBuilder {
 
   /// Contracts
   enum ContrVariant {
-    Empty,
+    Zero,
     After,
-    And,
+    Both,
     Scale,
     Transfer,
     IfWithin
@@ -177,11 +177,11 @@ contract ContractBuilder {
   }
 
   /// Expr for an accumulation
-  function exprAcc(bytes8 i1, bytes8 i2, uint e1, uint e2, uint k1,
+  function exprFoldt(bytes8 i1, bytes8 i2, uint e1, uint e2, uint k1,
   uint k2) internal returns (uint) {
     uint idx = nextExpr();
     exprs[idx] = Expr({
-      variant: ExprVariant.Acc,
+      variant: ExprVariant.Foldt,
       identifier1: i1,
       identifier2: i2,
       const1: k1,
@@ -303,10 +303,10 @@ contract ContractBuilder {
   /// ---------------------
 
   /// Ø
-  function contrEmpty() internal returns (uint) {
+  function contrZero() internal returns (uint) {
     uint idx = nextContr();
     contrs[idx] = Contr({
-      variant: ContrVariant.Empty,
+      variant: ContrVariant.Zero,
       identifier1: "",
       identifier2: "",
       identifier3: "",
@@ -338,10 +338,10 @@ contract ContractBuilder {
   }
 
   /// c1 & c2
-  function contrAnd(uint c1, uint c2) internal returns (uint) {
+  function contrBoth(uint c1, uint c2) internal returns (uint) {
     uint idx = nextContr();
     contrs[idx] = Contr({
-      variant: ContrVariant.And,
+      variant: ContrVariant.Both,
       identifier1: "",
       identifier2: "",
       identifier3: "",

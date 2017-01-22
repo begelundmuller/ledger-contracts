@@ -110,10 +110,10 @@ var killPortfolio = function(party) {
 }
 
 //
-var evaluatePortfolio = function() {
+var executePortfolio = function() {
   var manager = lib.ContractManager.at(addressManager);
   agreementIds.forEach(function(agreementId) {
-    manager.evaluate(agreementId, { from: party1, gas: 10000000 }, function(e, tx) {
+    manager.execute(agreementId, { from: party1, gas: 10000000 }, function(e, tx) {
       console.log("Transaction: " + tx);
       if (e) { console.log(e); return; }
       var events1 = manager.allEvents("latest", function(err, event) {
@@ -133,7 +133,7 @@ var evaluatePortfolio = function() {
   });
 
 
-  // Call evaluate on contracts, print all transfers that transpire
+  // Call execute on contracts, print all transfers that transpire
 }
 
 // For running:
@@ -144,7 +144,7 @@ var evaluatePortfolio = function() {
 // registerPortfolio();
 // signPortfolio(party1);
 // signPortfolio(party2);
-// evaluatePortfolio();
+// executePortfolio();
 // killPortfolio(party1);
 // killPortfolio(party2);
 

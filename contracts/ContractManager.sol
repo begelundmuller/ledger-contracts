@@ -1,6 +1,6 @@
 pragma solidity ^0.4.2;
 
-import './ContractEvaluator.sol';
+import './ContractEngine.sol';
 import './Feed.sol';
 import './Token.sol';
 
@@ -8,7 +8,7 @@ import './Token.sol';
 //// - Create contracts using the constructor functions
 //// - Register agreements over contract with +register+
 //// - Sign agreement with +sign+
-//// - Call +evaluate+ (repeatedly) to process contract
+//// - Call +execute+ (repeatedly) to process contract
 //// - To terminate an agreement, all parties must call +kill+
 ////
 //// The contract manager is also a Feed with two observables
@@ -21,7 +21,7 @@ import './Token.sol';
 //// - event AgreementSigned(uint256 agreementId)
 //// - event AgreementSettled(uint256 agreementId)
 //// - event AgreementKilled(uint256 agreementId)
-contract ContractManager is ContractEvaluator, Feed  {
+contract ContractManager is ContractEngine, Feed  {
 
   /// Structs
   /// -------
@@ -29,7 +29,7 @@ contract ContractManager is ContractEvaluator, Feed  {
   /// Represents an agreement over a contract
   struct Agreement {
     uint256 initialContract; // As initially constructed
-    uint256 currentContract; // Current state (changes on calls to evaluate)
+    uint256 currentContract; // Current state (changes on calls to execute)
 
     bytes8[] parties; // All parties present in initialContr (derived)
     mapping(bytes8 => address) addressFor; // identifier in contract => address
@@ -95,7 +95,7 @@ contract ContractManager is ContractEvaluator, Feed  {
   /// ------------------
 
   /// Initializer
-  function ContractManager() ContractEvaluator() Feed() {
+  function ContractManager() ContractEngine() Feed() {
   }
 
   /// Register a new agreement
@@ -188,7 +188,7 @@ contract ContractManager is ContractEvaluator, Feed  {
   }
 
   /// Processes developments in the agreement's contract since last call
-  function evaluate(uint256 agreementId) {
+  function execute(uint256 agreementId) {
     // Find agreement
     Agreement a = agreements[agreementId];
 
@@ -197,14 +197,14 @@ contract ContractManager is ContractEvaluator, Feed  {
 
     // Check not empty
     Contr currentContract = contrs[a.currentContract];
-    if (currentContract.variant == ContrVariant.Empty) return;
+    if (currentContract.variant == ContrVariant.Zero) return;
 
     // Evaluate
     a.currentContract = evaluateContract(agreementId, a.timeDelta, a.currentContract, 1);
 
     // Check if now settled
     currentContract = contrs[a.currentContract];
-    if (currentContract.variant == ContrVariant.Empty) {
+    if (currentContract.variant == ContrVariant.Zero) {
       AgreementSettled(agreementId);
     }
   }
@@ -284,7 +284,7 @@ contract ContractManager is ContractEvaluator, Feed  {
   /// Zero-coupon bond
   function zcb(bytes8 issuer, bytes8 holder, bytes8 ccy, int nominal, int price, int maturity)
   returns (uint contractId) {
-    contractId = contrAnd(
+    contractId = contrBoth(
       contrScale(
         exprConstant(constInteger(price)),
         contrTransfer(
@@ -313,7 +313,7 @@ contract ContractManager is ContractEvaluator, Feed  {
   returns (uint contractId) {
     contractId = contrScale(
       exprConstant(constInteger(amount)),
-      contrAnd(
+      contrBoth(
         contrTransfer(
           ccy1,
           party1,
@@ -352,7 +352,7 @@ contract ContractManager is ContractEvaluator, Feed  {
       exprObservation(feed, exprConstant(constDigest(digest)), exprVariable("t")),
       exprConstant(constInteger(1))
     );
-    contractId = contrIfWithin("t", obs, n, t0, spot, contrEmpty());
+    contractId = contrIfWithin("t", obs, n, t0, spot, contrZero());
     ContractCreated("fxAmericanOption", contractId);
   }
 
