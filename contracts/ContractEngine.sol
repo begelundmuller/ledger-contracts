@@ -25,6 +25,10 @@ contract ContractEngine is ContractChecker {
   /// Implemented by subclass
   function handleObservation(uint key, bytes8 name, bytes32 digest, uint time) internal returns (int);
 
+  /// Implemented by subclass
+  /// Use to update intrinsic time of a contract
+  function handleReduction(uint key, uint newNow) internal;
+
   /// Env helpers
   /// -----------
 
@@ -64,7 +68,7 @@ contract ContractEngine is ContractChecker {
   /// ----------
 
   /// Evaluates given contract and returns the ID of the reduced contract
-  function evaluateContract(uint key, uint timeDelta, uint contractId, int scale)
+  function evaluateContract(uint key, uint timeDelta, uint now, uint contractId, int scale)
   internal returns (uint) {
     // Get contract
     Contr c = contrs[contractId];
@@ -72,15 +76,21 @@ contract ContractEngine is ContractChecker {
     // Proceed by case analysis
     if (c.variant == ContrVariant.Zero) {
       // Cannot reduce the empty contract
-    } else if (c.variant == ContrVariant.After) {
+    } else if (c.variant == ContrVariant.Translate) {
       // Reduce if past time
-      if (consts[c.const1].integer <= int256(block.timestamp)) {
-        return evaluateContract(key, timeDelta, c.contr1, scale);
+      uint translateTimeExprIdx = evaluateExpression(key, timeDelta, now, c.expr1);
+      Expr translateTimeExpr = exprs[translateTimeExprIdx];
+      if (translateTimeExpr.variant == ExprVariant.Constant) {
+        uint translateTime = uint(consts[translateTimeExpr.const1].integer);
+        if (translateTime <= currentTime(timeDelta)) {
+          handleReduction(key, translateTime);
+          return evaluateContract(key, timeDelta, translateTime, c.contr1, scale);
+        }
       }
     } else if (c.variant == ContrVariant.Both) {
-      return evaluateBothContract(key, timeDelta, contractId, scale);
+      return evaluateBothContract(key, timeDelta, now, contractId, scale);
     } else if (c.variant == ContrVariant.Scale) {
-      return evaluateScaleContract(key, timeDelta, contractId, scale);
+      return evaluateScaleContract(key, timeDelta, now, contractId, scale);
     } else if (c.variant == ContrVariant.Transfer) {
       // Reduce to empty if handled; else stays the same
       if (handleTransfer(key, c.identifier1, c.identifier2, c.identifier3, scale)) {
@@ -89,21 +99,21 @@ contract ContractEngine is ContractChecker {
         return contractId;
       }
     } else if (c.variant == ContrVariant.IfWithin) {
-      return evaluateIfWithinContract(key, timeDelta, contractId, scale);
+      return evaluateIfWithinContract(key, timeDelta, now, contractId, scale);
     }
 
     // If not handled above, stays unchanged
     return contractId;
   }
 
-  function evaluateBothContract(uint key, uint timeDelta, uint contractId, int scale)
+  function evaluateBothContract(uint key, uint timeDelta, uint now, uint contractId, int scale)
   internal returns (uint) {
     // Get contract
     Contr c = contrs[contractId];
 
     // Reduce both contrs
-    uint outContractId1 = evaluateContract(key, timeDelta, c.contr1, scale);
-    uint outContractId2 = evaluateContract(key, timeDelta, c.contr2, scale);
+    uint outContractId1 = evaluateContract(key, timeDelta, now, c.contr1, scale);
+    uint outContractId2 = evaluateContract(key, timeDelta, now, c.contr2, scale);
     Contr outContract1 = contrs[outContractId1];
     Contr outContract2 = contrs[outContractId2];
 
@@ -117,13 +127,13 @@ contract ContractEngine is ContractChecker {
     }
   }
 
-  function evaluateScaleContract(uint key, uint timeDelta, uint contractId, int scale)
+  function evaluateScaleContract(uint key, uint timeDelta, uint now, uint contractId, int scale)
   internal returns (uint) {
     // Get contract
     Contr c = contrs[contractId];
 
     // Evaluate expression for scale value
-    uint outExprId = evaluateExpression(key, timeDelta, c.expr1);
+    uint outExprId = evaluateExpression(key, timeDelta, now, c.expr1);
     Expr outExpr = exprs[outExprId];
 
     // If scale value doesn't evaluate to constant, cannot proceed
@@ -138,7 +148,7 @@ contract ContractEngine is ContractChecker {
     }
 
     // Evaluate subcontract with increased scale
-    uint outContractId = evaluateContract(key, timeDelta, c.contr1, k.integer * scale);
+    uint outContractId = evaluateContract(key, timeDelta, now, c.contr1, k.integer * scale);
     Contr outContract = contrs[outContractId];
 
     // Keep scaling only if not empty
@@ -149,27 +159,28 @@ contract ContractEngine is ContractChecker {
     }
   }
 
-  function evaluateIfWithinContract(uint key, uint timeDelta, uint contractId, int scale)
+  function evaluateIfWithinContract(uint key, uint timeDelta, uint now, uint contractId, int scale)
   internal returns (uint) {
     // Get contract
     Contr c = contrs[contractId];
 
-    // Get n and t0
-    int n = consts[c.const1].integer;
-    int t0 = consts[c.const2].integer;
+    // Get t1 and t2
+    Expr t1Expr = exprs[evaluateExpression(key, timeDelta, now, c.expr2)];
+    Expr t2Expr = exprs[evaluateExpression(key, timeDelta, now, c.expr3)];
+    if (t1Expr.variant != ExprVariant.Constant || t2Expr.variant != ExprVariant.Constant) {
+      return contractId;
+    }
+    int t1 = consts[t1Expr.const1].integer;
+    int t2 = consts[t2Expr.const1].integer;
 
     // Evaluate
     bool result = false;
-    for (uint i = 0; i <= uint(n) && !result; i++) {
-      // Calculate time
-      int t = t0 + int(i * timeDelta);
-
+    uint newNow = now;
+    for (uint i = 0; newNow <= uint(t1 + t2) && !result; i++) {
       // Proceed only if not in the future
-      if (uint(t) <= block.timestamp) {
-        // Evaluate lambda
-        pushEnv(c.identifier1, exprConstant(constInteger(t)));
-        uint exprId = evaluateExpression(key, timeDelta, c.expr1);
-        popEnv();
+      if (newNow <= currentTime(timeDelta)) {
+        // Evaluate expression for newNow
+        uint exprId = evaluateExpression(key, timeDelta, newNow, c.expr1);
 
         // If returns a constant, set result to that
         Expr expr = exprs[exprId];
@@ -179,42 +190,53 @@ contract ContractEngine is ContractChecker {
             result = result || k.boolean;
           }
         }
+
+        // Calculate time
+        newNow = now + timeDelta;
       }
     }
 
     // Done
     if (result) {
-      return evaluateContract(key, timeDelta, c.contr1, scale);
-    } else if (t0 + n > int(block.timestamp)) {
+      pushEnv(c.identifier1, exprConstant(constInteger(int(newNow))));
+      handleReduction(key, newNow);
+      return evaluateContract(key, timeDelta, newNow, c.contr1, scale);
+      popEnv();
+    } else if (uint(t2 + t1) > currentTime(timeDelta)) {
       return contractId;
     } else {
-      return evaluateContract(key, timeDelta, c.contr2, scale);
+      pushEnv(c.identifier1, exprConstant(constInteger(int(newNow))));
+      handleReduction(key, newNow);
+      return evaluateContract(key, timeDelta, newNow, c.contr2, scale);
+      popEnv();
     }
   }
 
   /// Evaluates expression and returns the ID of the reduced expression
-  function evaluateExpression(uint key, uint timeDelta, uint expressionId)
+  function evaluateExpression(uint key, uint timeDelta, uint now, uint expressionId)
   internal returns (uint) {
     // Get expression
     Expr e = exprs[expressionId];
 
     // Proceed by case analysis
-    if (e.variant == ExprVariant.Constant) {
+    if (e.variant == ExprVariant.Now) {
+      return exprConstant(constInteger(int(now)));
+    } else if (e.variant == ExprVariant.Constant) {
     } else if (e.variant == ExprVariant.Variable) {
       return lookupEnv(e.identifier1);
     } else if (e.variant == ExprVariant.Observation) {
-      return evaluateExpressionObservation(key, timeDelta, expressionId);
+      return evaluateExpressionObservation(key, timeDelta, now, expressionId);
     } else if (e.variant == ExprVariant.Foldt) {
-      return evaluateExpressionFoldt(key, timeDelta, expressionId);
+      return evaluateExpressionFoldt(key, timeDelta, now, expressionId);
     } else if (e.variant == ExprVariant.Plus
     || e.variant == ExprVariant.Equal
     || e.variant == ExprVariant.LessEqual
     || e.variant == ExprVariant.And) {
-      return evaluateExpressionBinaryOp(key, timeDelta, expressionId);
+      return evaluateExpressionBinaryOp(key, timeDelta, now, expressionId);
     } else if (e.variant == ExprVariant.Not) {
-      return evaluateExpressionUnaryOp(key, timeDelta, expressionId);
+      return evaluateExpressionUnaryOp(key, timeDelta, now, expressionId);
     } else if (e.variant == ExprVariant.IfElse) {
-      return evaluateExpressionIfElse(key, timeDelta, expressionId);
+      return evaluateExpressionIfElse(key, timeDelta, now, expressionId);
     }
 
     // If not handled above, stays unchanged
@@ -222,13 +244,13 @@ contract ContractEngine is ContractChecker {
   }
 
   /// Evaluates an Obs expression
-  function evaluateExpressionObservation(uint key, uint timeDelta, uint expressionId)
+  function evaluateExpressionObservation(uint key, uint timeDelta, uint now, uint expressionId)
   internal returns (uint) {
-    // Get expression and evaluate sub-expression
+    // Get expression and evaluate time sub-expression
     Expr e = exprs[expressionId];
-    Expr e1 = exprs[evaluateExpression(key, timeDelta, e.expr1)];
+    Expr e1 = exprs[evaluateExpression(key, timeDelta, now, e.expr1)];
 
-    // If both don't evaluate to a constant, can't yet do anything
+    // If both don't evaluate to a constant, can't do anything
     if (e1.variant != ExprVariant.Constant) {
       return expressionId;
     }
@@ -247,26 +269,27 @@ contract ContractEngine is ContractChecker {
   }
 
   /// Evaluates an Foldt expression
-  function evaluateExpressionFoldt(uint key, uint timeDelta, uint expressionId)
+  function evaluateExpressionFoldt(uint key, uint timeDelta, uint now, uint expressionId)
   internal returns (uint) {
     // Get
     Expr e = exprs[expressionId];
 
     // Get constants
-    int t = consts[e.const1].integer;
-    int n = consts[e.const2].integer;
-
-    // Cannot reduce if all times accumulated over are not in the past
-    if (t + int(timeDelta) * n < int(block.timestamp)) return expressionId;
+    Expr tExpr = exprs[evaluateExpression(key, timeDelta, now, e.expr3)];
+    if (tExpr.variant != ExprVariant.Constant) {
+      return expressionId;
+    }
+    int timeAgo = consts[tExpr.const1].integer;
+    int foldDelta = consts[e.const1].integer;
 
     // Accummulate
     uint currentExpr = e.expr2;
-    for (uint i = 0; i <= uint(n); i++) {
+    uint currentNow = now - uint(timeAgo);
+    for (uint i = 0; currentNow <= now; i++) {
       pushEnv(e.identifier1, currentExpr);
-      pushEnv(e.identifier2, exprConstant(constInteger(t + int(timeDelta * i))));
-      currentExpr = evaluateExpression(key, timeDelta, e.expr1);
+      currentExpr = evaluateExpression(key, timeDelta, currentNow, e.expr1);
       popEnv();
-      popEnv();
+      currentNow = currentNow + uint(foldDelta);
     }
 
     // Return result of accumulation
@@ -274,11 +297,11 @@ contract ContractEngine is ContractChecker {
   }
 
   /// Evaluates a unary operation (currently only +not+)
-  function evaluateExpressionUnaryOp(uint key, uint timeDelta, uint expressionId)
+  function evaluateExpressionUnaryOp(uint key, uint timeDelta, uint now, uint expressionId)
   internal returns (uint) {
     // Get expr in question
     Expr e = exprs[expressionId];
-    uint outExpressionId = evaluateExpression(key, timeDelta, e.expr1);
+    uint outExpressionId = evaluateExpression(key, timeDelta, now, e.expr1);
     Expr outExpression = exprs[outExpressionId];
 
     // If not constant, can't evaluate yet
@@ -301,14 +324,14 @@ contract ContractEngine is ContractChecker {
   }
 
   /// Evaluates a binary operation
-  function evaluateExpressionBinaryOp(uint key, uint timeDelta, uint expressionId)
+  function evaluateExpressionBinaryOp(uint key, uint timeDelta, uint now, uint expressionId)
   internal returns (uint) {
     // Get expr in question
     Expr e = exprs[expressionId];
 
     // Evaluate each sub expr
-    uint exprId1 = evaluateExpression(key, timeDelta, e.expr1);
-    uint exprId2 = evaluateExpression(key, timeDelta, e.expr2);
+    uint exprId1 = evaluateExpression(key, timeDelta, now, e.expr1);
+    uint exprId2 = evaluateExpression(key, timeDelta, now, e.expr2);
     Expr expr1 = exprs[exprId1];
     Expr expr2 = exprs[exprId2];
 
@@ -344,13 +367,13 @@ contract ContractEngine is ContractChecker {
   }
 
   /// Evaluates an if-else
-  function evaluateExpressionIfElse(uint key, uint timeDelta, uint expressionId)
+  function evaluateExpressionIfElse(uint key, uint timeDelta, uint now, uint expressionId)
   internal returns (uint) {
     // Get expr in question
     Expr e = exprs[expressionId];
 
     // Evaluate conditional
-    uint condExprId = evaluateExpression(key, timeDelta, e.expr1);
+    uint condExprId = evaluateExpression(key, timeDelta, now, e.expr1);
     Expr condExpr = exprs[condExprId];
 
     // If not constant, can't evaluate yet
@@ -370,7 +393,7 @@ contract ContractEngine is ContractChecker {
     }
 
     // Return evaluated expression ID
-    return evaluateExpression(key, timeDelta, outExprId);
+    return evaluateExpression(key, timeDelta, now, outExprId);
   }
 
 }

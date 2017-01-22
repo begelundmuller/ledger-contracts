@@ -21,6 +21,7 @@ contract ContractBuilder {
 
   /// Expressions
   enum ExprVariant {
+    Now,
     Constant,
     Variable,
     Observation,
@@ -48,7 +49,7 @@ contract ContractBuilder {
   /// Contracts
   enum ContrVariant {
     Zero,
-    After,
+    Translate,
     Both,
     Scale,
     Transfer,
@@ -60,9 +61,9 @@ contract ContractBuilder {
     bytes8 identifier1;
     bytes8 identifier2;
     bytes8 identifier3;
-    uint const1;
-    uint const2;
     uint expr1;
+    uint expr2;
+    uint expr3;
     uint contr1;
     uint contr2;
   }
@@ -124,6 +125,23 @@ contract ContractBuilder {
   /// Expression constructors
   /// -----------------------
 
+  /// Expr for now (time)
+  function exprNow() internal returns (uint) {
+    uint idx = nextExpr();
+    exprs[idx] = Expr({
+      variant: ExprVariant.Now,
+      identifier1: "",
+      identifier2: "",
+      const1: 0,
+      const2: 0,
+      const3: 0,
+      expr1: 0,
+      expr2: 0,
+      expr3: 0
+    });
+    return idx;
+  }
+
   /// Expr for a const
   function exprConstant(uint k) internal returns (uint) {
     uint idx = nextExpr();
@@ -177,19 +195,18 @@ contract ContractBuilder {
   }
 
   /// Expr for an accumulation
-  function exprFoldt(bytes8 i1, bytes8 i2, uint e1, uint e2, uint k1,
-  uint k2) internal returns (uint) {
+  function exprFoldt(bytes8 i1, uint e1, uint e2, uint t, uint k) internal returns (uint) {
     uint idx = nextExpr();
     exprs[idx] = Expr({
       variant: ExprVariant.Foldt,
       identifier1: i1,
-      identifier2: i2,
-      const1: k1,
-      const2: k2,
+      identifier2: 0,
+      const1: k,
+      const2: 0,
       const3: 0,
       expr1: e1,
       expr2: e2,
-      expr3: 0
+      expr3: t
     });
     return idx;
   }
@@ -310,9 +327,9 @@ contract ContractBuilder {
       identifier1: "",
       identifier2: "",
       identifier3: "",
-      const1: 0,
-      const2: 0,
       expr1: 0,
+      expr2: 0,
+      expr3: 0,
       contr1: 0,
       contr2: 0
     });
@@ -320,17 +337,17 @@ contract ContractBuilder {
   }
 
   /// k ↑ c
-  function contrAfter(uint k, uint c)
+  function contrTranslate(uint t, uint c)
   internal returns (uint) {
     uint idx = nextContr();
     contrs[idx] = Contr({
-      variant: ContrVariant.After,
+      variant: ContrVariant.Translate,
       identifier1: "",
       identifier2: "",
       identifier3: "",
-      const1: k,
-      const2: 0,
-      expr1: 0,
+      expr1: t,
+      expr2: 0,
+      expr3: 0,
       contr1: c,
       contr2: 0
     });
@@ -345,9 +362,9 @@ contract ContractBuilder {
       identifier1: "",
       identifier2: "",
       identifier3: "",
-      const1: 0,
-      const2: 0,
       expr1: 0,
+      expr2: 0,
+      expr3: 0,
       contr1: c1,
       contr2: c2
     });
@@ -362,9 +379,9 @@ contract ContractBuilder {
       identifier1: "",
       identifier2: "",
       identifier3: "",
-      const1: 0,
-      const2: 0,
       expr1: e,
+      expr2: 0,
+      expr3: 0,
       contr1: c,
       contr2: 0
     });
@@ -380,27 +397,27 @@ contract ContractBuilder {
       identifier1: a,
       identifier2: p,
       identifier3: q,
-      const1: 0,
-      const2: 0,
       expr1: 0,
+      expr2: 0,
+      expr3: 0,
       contr1: 0,
       contr2: 0
     });
     return idx;
   }
 
-  // if \t . e within n of t0 then c1 else c2
-  function contrIfWithin(bytes8 t, uint e, uint n, uint t0, uint c1, uint c2)
+  // if e within t1 of t2 then \x . c1 else \x .  c2
+  function contrIfWithin(uint e, uint t1, uint t2, bytes8 x, uint c1, uint c2)
   internal returns (uint) {
     uint idx = nextContr();
     contrs[idx] = Contr({
       variant: ContrVariant.IfWithin,
-      identifier1: t,
+      identifier1: x,
       identifier2: "",
       identifier3: "",
-      const1: n,
-      const2: t0,
       expr1: e,
+      expr2: t1,
+      expr3: t2,
       contr1: c1,
       contr2: c2
     });
@@ -427,5 +444,6 @@ contract ContractBuilder {
     contrs.length++;
     return idx;
   }
+
 
 }

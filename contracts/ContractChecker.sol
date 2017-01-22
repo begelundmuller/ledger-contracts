@@ -18,7 +18,7 @@ contract ContractChecker is ContractBuilder {
   function checkContract(uint key, uint contractId) internal {
     Contr c = contrs[contractId];
     if (c.variant == ContrVariant.Zero) {
-    } else if (c.variant == ContrVariant.After) {
+    } else if (c.variant == ContrVariant.Translate) {
       checkContract(key, c.contr1);
     } else if (c.variant == ContrVariant.Both) {
       checkContract(key, c.contr1);
@@ -39,7 +39,8 @@ contract ContractChecker is ContractBuilder {
 
   function checkExpression(uint key, uint expressionId) internal {
     Expr e = exprs[expressionId];
-    if (e.variant == ExprVariant.Constant) {
+    if (e.variant == ExprVariant.Now) {
+    } else if (e.variant == ExprVariant.Constant) {
     } else if (e.variant == ExprVariant.Variable) {
     } else if (e.variant == ExprVariant.Observation) {
       checkerEncounteredName(key, NameKind.Feed, e.identifier1);

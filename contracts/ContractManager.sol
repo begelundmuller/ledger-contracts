@@ -40,6 +40,7 @@ contract ContractManager is ContractEngine, Feed  {
     uint256 signedOn; // First time where ∀p <- partiesInContract . signed[p]
     uint256 killedOn; // First time where ∀p <- partiesInContract . killSigned[p]
 
+    uint256 now; // Intrinsic time of contract
     uint256 timeDelta; // Size of time steps in seconds; must be synced with feeds
   }
 
@@ -117,6 +118,7 @@ contract ContractManager is ContractEngine, Feed  {
     a.signedOn = 0;
     a.killedOn = 0;
     a.timeDelta = 30;
+    a.now = currentTime(a.timeDelta);
 
     // Mapping names to addresses
     a.addressFor[party1Name] = party1Address;
@@ -200,7 +202,7 @@ contract ContractManager is ContractEngine, Feed  {
     if (currentContract.variant == ContrVariant.Zero) return;
 
     // Evaluate
-    a.currentContract = evaluateContract(agreementId, a.timeDelta, a.currentContract, 1);
+    a.currentContract = evaluateContract(agreementId, a.timeDelta, a.now, a.currentContract, 1);
 
     // Check if now settled
     currentContract = contrs[a.currentContract];
@@ -278,6 +280,13 @@ contract ContractManager is ContractEngine, Feed  {
     }
   }
 
+  /// Called when contract being evaluated reduces to a new intrinsic time
+  function handleReduction(uint key, uint newNow) internal {
+    // Get agreement and update now
+    Agreement a = agreements[key];
+    a.now = newNow;
+  }
+
   /// Offered contracts
   /// -----------------
 
@@ -293,7 +302,7 @@ contract ContractManager is ContractEngine, Feed  {
           issuer
         )
       ),
-      contrAfter(
+      contrTranslate(
         constInteger(maturity),
         contrScale(
           exprConstant(constInteger(nominal)),
@@ -336,7 +345,7 @@ contract ContractManager is ContractEngine, Feed  {
   function fxForward(bytes8 party1, bytes8 party2, bytes8 ccy1,
     bytes8 ccy2, int t, int amount, int strike)
   returns (uint contractId) {
-    contractId = contrAfter(
+    contractId = contrTranslate(
       constInteger(t),
       fxSpot(party1, party2, ccy1, ccy2, amount, strike)
     );
@@ -345,14 +354,14 @@ contract ContractManager is ContractEngine, Feed  {
 
   ///
   function fxAmericanOption(bytes8 party1, bytes8 party2, bytes8 ccy1, bytes8 ccy2,
-    uint n, uint t0, int amount, int strike, bytes8 feed, bytes32 digest)
+    int t, int amount, int strike, bytes8 feed, bytes32 digest)
   returns (uint contractId) {
     uint spot = fxSpot(party1, party2, ccy1, ccy2, amount, strike);
     uint obs = exprEqual(
-      exprObservation(feed, exprConstant(constDigest(digest)), exprVariable("t")),
+      exprObservation(feed, exprConstant(constDigest(digest)), exprNow()),
       exprConstant(constInteger(1))
     );
-    contractId = contrIfWithin("t", obs, n, t0, spot, contrZero());
+    contractId = contrIfWithin(obs, exprConstant(constInteger(t)), exprNow(), "x", spot, contrZero());
     ContractCreated("fxAmericanOption", contractId);
   }
 
