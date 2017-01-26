@@ -40,7 +40,6 @@ contract ContractManager is ContractEngine, Feed  {
     uint256 signedOn; // First time where ∀p <- partiesInContract . signed[p]
     uint256 killedOn; // First time where ∀p <- partiesInContract . killSigned[p]
 
-    uint256 now; // Intrinsic time of contract
     uint256 timeDelta; // Size of time steps in seconds; must be synced with feeds
   }
 
@@ -118,7 +117,6 @@ contract ContractManager is ContractEngine, Feed  {
     a.signedOn = 0;
     a.killedOn = 0;
     a.timeDelta = 30;
-    a.now = currentTime(a.timeDelta);
 
     // Mapping names to addresses
     a.addressFor[party1Name] = party1Address;
@@ -202,7 +200,7 @@ contract ContractManager is ContractEngine, Feed  {
     if (currentContract.variant == ContrVariant.Zero) return;
 
     // Evaluate
-    a.currentContract = evaluateContract(agreementId, a.timeDelta, a.now, a.currentContract, 1);
+    a.currentContract = evaluateContract(agreementId, currentTime(agreementId), a.currentContract, 1);
 
     // Check if now settled
     currentContract = contrs[a.currentContract];
@@ -280,11 +278,11 @@ contract ContractManager is ContractEngine, Feed  {
     }
   }
 
-  /// Called when contract being evaluated reduces to a new intrinsic time
-  function handleReduction(uint key, uint newNow) internal {
-    // Get agreement and update now
+  /// Implemented by subclass
+  /// Use to get time delta of contract
+  function timeDelta(uint key) internal returns (uint td) {
     Agreement a = agreements[key];
-    a.now = newNow;
+    return a.timeDelta;
   }
 
   /// Offered contracts

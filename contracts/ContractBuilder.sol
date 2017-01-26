@@ -50,10 +50,12 @@ contract ContractBuilder {
   enum ContrVariant {
     Zero,
     Translate,
+    TranslateSpecialized,
     Both,
     Scale,
     Transfer,
-    IfWithin
+    IfWithin,
+    IfWithinSpecialized
   }
 
   struct Contr {
@@ -61,6 +63,7 @@ contract ContractBuilder {
     bytes8 identifier1;
     bytes8 identifier2;
     bytes8 identifier3;
+    uint const1;
     uint expr1;
     uint expr2;
     uint expr3;
@@ -327,6 +330,7 @@ contract ContractBuilder {
       identifier1: "",
       identifier2: "",
       identifier3: "",
+      const1: 0,
       expr1: 0,
       expr2: 0,
       expr3: 0,
@@ -345,6 +349,7 @@ contract ContractBuilder {
       identifier1: "",
       identifier2: "",
       identifier3: "",
+      const1: 0,
       expr1: t,
       expr2: 0,
       expr3: 0,
@@ -362,6 +367,7 @@ contract ContractBuilder {
       identifier1: "",
       identifier2: "",
       identifier3: "",
+      const1: 0,
       expr1: 0,
       expr2: 0,
       expr3: 0,
@@ -379,6 +385,7 @@ contract ContractBuilder {
       identifier1: "",
       identifier2: "",
       identifier3: "",
+      const1: 0,
       expr1: e,
       expr2: 0,
       expr3: 0,
@@ -397,6 +404,7 @@ contract ContractBuilder {
       identifier1: a,
       identifier2: p,
       identifier3: q,
+      const1: 0,
       expr1: 0,
       expr2: 0,
       expr3: 0,
@@ -415,6 +423,7 @@ contract ContractBuilder {
       identifier1: x,
       identifier2: "",
       identifier3: "",
+      const1: 0,
       expr1: e,
       expr2: t1,
       expr3: t2,
