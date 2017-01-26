@@ -1,4 +1,4 @@
-pragma solidity ^0.4.8;
+pragma solidity ^0.4.2;
 
 contract Feed {
   function get(bytes32 key, uint time) constant returns (int256 value);

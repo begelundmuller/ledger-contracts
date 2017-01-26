@@ -9,12 +9,12 @@ var web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 
 // Returns the ABI of the given contract (must be in folder +source+)
 exports.getAbi = function(name) {
-  return JSON.parse(fs.readFileSync('./source/' + name + '.abi', 'utf8'));
+  return JSON.parse(fs.readFileSync('../contracts/' + name + '.abi', 'utf8'));
 }
 
 // Returns the binary code of the given contract (must be in folder +source+)
 exports.getCode = function(name) {
-  return "0x" + fs.readFileSync('./source/' + name + '.bin', 'utf8');
+  return "0x" + fs.readFileSync('../contracts/' + name + '.bin', 'utf8');
 }
 
 // Object for ContractManager
@@ -68,9 +68,9 @@ exports.launchToken = function(creator, name, cb) {
   });
 }
 
-// Recompiles the solidity files in ./source/
+// Recompiles the solidity files in ./contracts/
 exports.recompile = function (cb) {
-  childProcess.exec('bash ./recompile.sh', function (error, stdout, stderr) {
+  childProcess.exec('bash ../recompile.sh', function (error, stdout, stderr) {
     cb(error);
   });
 };

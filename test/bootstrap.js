@@ -24,8 +24,8 @@ var printResult = function(token, party) {
     // Print token address
     console.log(ccy + ": " + token.address);
     // Endow parties with tokens
-    token.endow(party1, 9999999, { from: master, value: 0, gas: 1000000 });
-    token.endow(party2, 9999999, { from: master, value: 0, gas: 1000000 });
+    token.endow(party1, 1000000, { from: master, value: 0, gas: 1000000 });
+    token.endow(party2, 1000000, { from: master, value: 0, gas: 1000000 });
     // Print results (allow time for sufficient mining to occur)
     setTimeout(printResult(token, party1), 60000);
     setTimeout(printResult(token, party2), 60000);
@@ -37,14 +37,14 @@ lib.launchFeed(master, function(feed) {
   // Print token address
   console.log("Feed: " + feed.address);
   // Add value to feed
-  var blockNum = lib.web3.eth.blockNumber;
-  var minedOn = lib.web3.eth.getBlock(blockNum).timestamp;
-  feed.set(lib.web3.sha3("launchedOn"), minedOn, { from: master, value: 0, gas: 1000000 });
+  // var blockNum = lib.web3.eth.blockNumber;
+  // var minedOn = lib.web3.eth.getBlock(blockNum).timestamp;
+  // feed.set(lib.web3.sha3("launchedOn"), minedOn, { from: master, value: 0, gas: 1000000 });
   // Print results (allow time for sufficient mining to occur)
-  setTimeout(function() {
-    var launchedOn = feed.get.call(lib.web3.sha3("launchedOn"));
-    console.log("Feed launched on: " + launchedOn);
-  }, 60000);
+  // setTimeout(function() {
+  //   var launchedOn = feed.get.call(lib.web3.sha3("launchedOn"));
+  //   console.log("Feed launched on: " + launchedOn);
+  // }, 60000);
 });
 
 // For testing:
